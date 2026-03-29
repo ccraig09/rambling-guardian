@@ -9,6 +9,7 @@
 #include "led_output.h"
 #include "button_input.h"
 #include "mode_manager.h"
+#include "battery_monitor.h"
 
 void setup() {
   Serial.begin(115200);
@@ -21,8 +22,11 @@ void setup() {
   ledOutputInit();
   buttonInputInit();
   modeManagerInit();
+  batteryMonitorInit();
 
-  Serial.println("System ready. Monitoring mode active.");
+  Serial.println("=== System ready ===");
+  Serial.println("Modes: single-press = presentation, long-press = sleep");
+  Serial.println("LED: green=safe, yellow=7s, orange=15s, red=30s, blink=60s");
 }
 
 void loop() {
@@ -30,4 +34,5 @@ void loop() {
   speechTimerUpdate();
   ledOutputUpdate();
   buttonInputUpdate();
+  batteryMonitorUpdate();
 }
