@@ -16,9 +16,8 @@ static uint32_t colorUrgent;     // Red
 static uint32_t colorCritical;   // Red (blinks)
 static uint32_t colorPresentation; // Blue
 
-// Breathing animation state
-static unsigned long lastBreathUpdate = 0;
-static float breathPhase = 0.0;
+// Animation rate-limiting
+static unsigned long lastLedUpdate = 0;
 
 // Blink animation state
 static unsigned long lastBlinkToggle = 0;
@@ -66,6 +65,10 @@ void ledOutputInit() {
 }
 
 void ledOutputUpdate() {
+  unsigned long now = millis();
+  if (now - lastLedUpdate < 20) return;  // 50 Hz refresh — smooth for human eye
+  lastLedUpdate = now;
+
   uint32_t color;
 
   if (currentMode == MODE_PRESENTATION) {
