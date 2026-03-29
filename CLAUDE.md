@@ -32,8 +32,28 @@ Wearable ADHD speech-duration monitor built on XIAO ESP32S3 Sense.
 Modules communicate via event bus only — never call each other directly.
 Audio → VAD → SpeechTimer → EventBus → LED/Vibration/BLE subscribers.
 
-## Design Spec
-See: ../word-shepherd/docs/superpowers/specs/2026-03-29-rambling-guardian-design.md
+## Key Docs (all in this repo)
+- **Design Spec:** `docs/specs/2026-03-29-rambling-guardian-design.md` — full architecture, edge cases, all 5 phases
+- **Implementation Plan:** `docs/plans/2026-03-29-rambling-guardian-phase-a.md` — exact code for every task
+- **Original Intake:** `docs/reference/original-intake.md` — founder call transcript/brief
+- **Original PRD:** `docs/reference/original-prd.md` — previous attempt's full PRD
+- **Hardware Guide:** `docs/reference/hardware-guide.md` — vendor sourcing, components, prototyping process
 
-## Implementation Plan
-See: ../word-shepherd/docs/superpowers/plans/2026-03-29-rambling-guardian-phase-a.md
+## Workflow
+- Use `superpowers:subagent-driven-development` to execute the implementation plan
+- Each task dispatches a fresh subagent with full task text from the plan
+- Two-stage review after each task: spec compliance, then code quality
+- Commit after every task. Push frequently. Git activity matters.
+
+## User Context
+- Carlos is a frontend developer (React Native/TypeScript) learning hardware for the first time
+- Visual and experiential learner — use frontend analogies (GPIO = event listeners, loop() = render cycle)
+- Has ADHD — keep pace, don't slow down, teach inline
+- Owns: XIAO ESP32S3 Sense, SunFounder Kepler Kit (breadboard, wires, resistors, WS2812 strip, buttons, transistors), 400mAh LiPo battery, JST-PH 2.0 connectors, 25-pack tactile buttons, soldering kit, micro SD card
+
+## Non-Negotiables
+- Every task gets a git commit with conventional commit message
+- Push to GitHub after every 2-3 tasks minimum
+- Never skip the event bus pattern — all modules communicate via events
+- Energy-based VAD for MVP (ESP-SR VADNet requires ESP-IDF, deferred to later phase)
+- Battery safety: JST connector only, never solder battery directly, respect polarity
