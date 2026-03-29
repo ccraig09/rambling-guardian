@@ -6,12 +6,7 @@
 #include "event_bus.h"
 #include "audio_input.h"
 #include "speech_timer.h"
-
-void onAlertChanged(EventType event, int payload) {
-  const char* labels[] = { "NONE", "GENTLE", "MODERATE", "URGENT", "CRITICAL" };
-  Serial.print("[Alert] Level changed to: ");
-  if (payload >= 0 && payload <= 4) Serial.println(labels[payload]);
-}
+#include "led_output.h"
 
 void setup() {
   Serial.begin(115200);
@@ -19,15 +14,15 @@ void setup() {
   Serial.println("Rambling Guardian booting...");
 
   eventBusInit();
-  eventBusSubscribe(EVENT_ALERT_LEVEL_CHANGED, onAlertChanged);
-
   audioInputInit();
   speechTimerInit();
+  ledOutputInit();
 
-  Serial.println("System ready. Start talking to test...");
+  Serial.println("System ready. LED should be breathing green.");
 }
 
 void loop() {
   audioInputUpdate();
   speechTimerUpdate();
+  ledOutputUpdate();
 }
