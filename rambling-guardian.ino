@@ -10,7 +10,7 @@
 void onAlertChanged(EventType event, int payload) {
   const char* labels[] = { "NONE", "GENTLE", "MODERATE", "URGENT", "CRITICAL" };
   Serial.print("[Alert] Level changed to: ");
-  Serial.println(labels[payload]);
+  if (payload >= 0 && payload <= 4) Serial.println(labels[payload]);
 }
 
 void setup() {

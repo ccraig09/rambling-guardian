@@ -36,9 +36,14 @@ static void onSpeechEvent(EventType event, int payload) {
 static void onModeChanged(EventType event, int payload) {
   DeviceMode mode = (DeviceMode)payload;
   alertsSuppressed = (mode == MODE_PRESENTATION);
-  if (alertsSuppressed && currentLevel != ALERT_NONE) {
-    currentLevel = ALERT_NONE;
-    eventBusPublish(EVENT_ALERT_LEVEL_CHANGED, ALERT_NONE);
+  if (alertsSuppressed) {
+    timerRunning = false;
+    speechStartTime = 0;
+    isSpeaking = false;
+    if (currentLevel != ALERT_NONE) {
+      currentLevel = ALERT_NONE;
+      eventBusPublish(EVENT_ALERT_LEVEL_CHANGED, ALERT_NONE);
+    }
   }
 }
 

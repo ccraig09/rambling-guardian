@@ -2,6 +2,7 @@
 #define SPEECH_TIMER_H
 
 #include <Arduino.h>
+#include "event_bus.h"
 
 void speechTimerInit();
 void speechTimerUpdate();  // Call every loop() iteration
