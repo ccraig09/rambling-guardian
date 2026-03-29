@@ -27,6 +27,10 @@ static int calculateEnergy() {
   return (int)(sum / validSamples);
 }
 
+static void onSensitivityChanged(EventType event, int payload) {
+  audioSetSensitivity(payload);
+}
+
 void audioInputInit() {
   i2s.setPinsPdmRx(PIN_MIC_CLK, PIN_MIC_DATA);
 
@@ -37,6 +41,7 @@ void audioInputInit() {
   }
 
   i2sReady = true;
+  eventBusSubscribe(EVENT_SENSITIVITY_CHANGED, onSensitivityChanged);
   Serial.println("[Audio] Microphone initialized (PDM RX, 16kHz, 16-bit mono)");
 }
 

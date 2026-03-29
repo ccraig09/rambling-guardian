@@ -1,6 +1,5 @@
 #include "mode_manager.h"
 #include "event_bus.h"
-#include "audio_input.h"
 #include "config.h"
 
 static DeviceMode currentMode = MODE_MONITORING;
@@ -22,13 +21,12 @@ static void onButtonEvent(EventType event, int payload) {
   else if (event == EVENT_BUTTON_DOUBLE) {
     // Cycle VAD sensitivity
     vadSensitivity = (vadSensitivity + 1) % VAD_SENSITIVITY_LEVELS;
-    audioSetSensitivity(vadSensitivity);
+    eventBusPublish(EVENT_SENSITIVITY_CHANGED, vadSensitivity);
     Serial.print("[Mode] VAD sensitivity: mode ");
     Serial.print(vadSensitivity + 1);
     Serial.print(" (threshold: ");
     Serial.print(VAD_THRESHOLDS[vadSensitivity]);
     Serial.println(")");
-    // Note: audio_input.cpp reads this via a shared mechanism or config update
   }
 
   else if (event == EVENT_BUTTON_LONG) {
@@ -43,7 +41,7 @@ static void onButtonEvent(EventType event, int payload) {
 
 void modeManagerInit() {
   // Configure wake-up source: button press (GPIO low)
-  esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTON, 0);
+  esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTON), ESP_EXT1_WAKEUP_ANY_LOW);
 
   eventBusSubscribe(EVENT_BUTTON_SINGLE, onButtonEvent);
   eventBusSubscribe(EVENT_BUTTON_DOUBLE, onButtonEvent);

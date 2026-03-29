@@ -16,6 +16,7 @@ enum EventType {
   EVENT_BUTTON_LONG,           // Long press detected
   EVENT_BATTERY_LOW,           // Battery below warning threshold
   EVENT_BATTERY_CRITICAL,      // Battery below shutdown threshold
+  EVENT_SENSITIVITY_CHANGED,   // VAD sensitivity level changed (payload = index)
   EVENT_COUNT                  // Total number of event types
 };
 
