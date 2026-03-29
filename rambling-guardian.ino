@@ -4,12 +4,18 @@
 
 #include "config.h"
 #include "event_bus.h"
+#include "audio_input.h"
 
-void testHandler(EventType event, int payload) {
-  Serial.print("[Test] Received event ");
-  Serial.print(event);
-  Serial.print(" with payload ");
-  Serial.println(payload);
+void onSpeech(EventType event, int payload) {
+  if (event == EVENT_SPEECH_STARTED) {
+    Serial.print("[VAD] Speech STARTED (energy: ");
+    Serial.print(payload);
+    Serial.println(")");
+  } else if (event == EVENT_SPEECH_ENDED) {
+    Serial.print("[VAD] Speech ENDED (energy: ");
+    Serial.print(payload);
+    Serial.println(")");
+  }
 }
 
 void setup() {
@@ -18,12 +24,19 @@ void setup() {
   Serial.println("Rambling Guardian booting...");
 
   eventBusInit();
-  eventBusSubscribe(EVENT_ALERT_LEVEL_CHANGED, testHandler);
+  eventBusSubscribe(EVENT_SPEECH_STARTED, onSpeech);
+  eventBusSubscribe(EVENT_SPEECH_ENDED, onSpeech);
 
-  // Test: publish a dummy alert
-  eventBusPublish(EVENT_ALERT_LEVEL_CHANGED, ALERT_GENTLE);
+  audioInputInit();
 }
 
 void loop() {
-  delay(100);
+  audioInputUpdate();
+  // Print energy level every 500ms for calibration
+  static unsigned long lastPrint = 0;
+  if (millis() - lastPrint > 500) {
+    Serial.print("[Energy] ");
+    Serial.println(audioGetCurrentEnergy());
+    lastPrint = millis();
+  }
 }
