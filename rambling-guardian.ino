@@ -5,17 +5,12 @@
 #include "config.h"
 #include "event_bus.h"
 #include "audio_input.h"
+#include "speech_timer.h"
 
-void onSpeech(EventType event, int payload) {
-  if (event == EVENT_SPEECH_STARTED) {
-    Serial.print("[VAD] Speech STARTED (energy: ");
-    Serial.print(payload);
-    Serial.println(")");
-  } else if (event == EVENT_SPEECH_ENDED) {
-    Serial.print("[VAD] Speech ENDED (energy: ");
-    Serial.print(payload);
-    Serial.println(")");
-  }
+void onAlertChanged(EventType event, int payload) {
+  const char* labels[] = { "NONE", "GENTLE", "MODERATE", "URGENT", "CRITICAL" };
+  Serial.print("[Alert] Level changed to: ");
+  Serial.println(labels[payload]);
 }
 
 void setup() {
@@ -24,19 +19,15 @@ void setup() {
   Serial.println("Rambling Guardian booting...");
 
   eventBusInit();
-  eventBusSubscribe(EVENT_SPEECH_STARTED, onSpeech);
-  eventBusSubscribe(EVENT_SPEECH_ENDED, onSpeech);
+  eventBusSubscribe(EVENT_ALERT_LEVEL_CHANGED, onAlertChanged);
 
   audioInputInit();
+  speechTimerInit();
+
+  Serial.println("System ready. Start talking to test...");
 }
 
 void loop() {
   audioInputUpdate();
-  // Print energy level every 500ms for calibration
-  static unsigned long lastPrint = 0;
-  if (millis() - lastPrint > 500) {
-    Serial.print("[Energy] ");
-    Serial.println(audioGetCurrentEnergy());
-    lastPrint = millis();
-  }
+  speechTimerUpdate();
 }
