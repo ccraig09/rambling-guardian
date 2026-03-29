@@ -4,11 +4,12 @@
 #include "ESP_I2S.h"
 
 static I2SClass i2s;
+static bool i2sReady = false;
 static bool speechActive = false;
 static int currentEnergy = 0;
 static int currentSensitivity = 1;  // Default mode 2 (index 1)
 
-// Calculate RMS energy from audio samples over a window
+// Calculate mean absolute amplitude from audio samples over a window
 static int calculateEnergy() {
   long sum = 0;
   int validSamples = 0;
@@ -35,10 +36,12 @@ void audioInputInit() {
     return;
   }
 
+  i2sReady = true;
   Serial.println("[Audio] Microphone initialized (PDM RX, 16kHz, 16-bit mono)");
 }
 
 void audioInputUpdate() {
+  if (!i2sReady) return;
   currentEnergy = calculateEnergy();
   int threshold = VAD_THRESHOLDS[currentSensitivity];
   bool isSpeech = (currentEnergy > threshold);
@@ -54,4 +57,10 @@ void audioInputUpdate() {
 
 int audioGetCurrentEnergy() {
   return currentEnergy;
+}
+
+void audioSetSensitivity(int level) {
+  if (level >= 0 && level < VAD_SENSITIVITY_LEVELS) {
+    currentSensitivity = level;
+  }
 }
