@@ -1,0 +1,18 @@
+# Arduino build artifacts
+build/
+*.elf
+*.bin
+*.hex
+*.map
+
+# IDE
+.vscode/
+*.code-workspace
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Superpowers brainstorm sessions
+.superpowers/

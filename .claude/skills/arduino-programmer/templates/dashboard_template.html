@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{PROJECT_NAME}} - Arduino Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom animations */
+        @keyframes pulse-green {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse-green {
+            animation: pulse-green 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        /* Smooth transitions */
+        .transition-all {
+            transition: all 0.3s ease;
+        }
+        
+        /* Serial output styling */
+        #serial-output {
+            font-family: 'Courier New', monospace;
+            line-height: 1.4;
+        }
+        
+        /* Status indicator */
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-5xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                🔧 {{PROJECT_NAME}}
+            </h1>
+            <p class="text-gray-400 text-lg">{{PROJECT_DESCRIPTION}}</p>
+        </div>
+
+        <!-- Connection Status -->
+        <div id="status-card" class="mb-6 p-4 rounded-xl bg-yellow-600/20 border-2 border-yellow-600 transition-all">
+            <div class="flex items-center">
+                <span class="status-dot bg-yellow-500"></span>
+                <span class="font-bold text-yellow-300">Not Connected</span>
+                <span class="ml-2 text-yellow-200">- Click Connect to begin</span>
+            </div>
+        </div>
+
+        <!-- Main Control Panel -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Connection & Controls -->
+            <div class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700">
+                <h2 class="text-2xl font-bold mb-4 flex items-center">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Controls
+                </h2>
+                
+                <!-- Connect Button -->
+                <button id="connect-btn" class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 px-6 rounded-lg mb-4 transition-all transform hover:scale-105 shadow-lg">
+                    🔌 Connect to Arduino
+                </button>
+
+                <!-- Custom Controls (populated dynamically) -->
+                <div id="custom-controls" class="space-y-3">
+                    {{CUSTOM_CONTROLS}}
+                </div>
+            </div>
+
+            <!-- Live Data Display -->
+            <div class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700">
+                <h2 class="text-2xl font-bold mb-4 flex items-center">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Live Readings
+                </h2>
+                
+                <div id="live-data" class="space-y-4">
+                    {{LIVE_DATA_DISPLAYS}}
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Visualization -->
+        <div class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700 mb-6">
+            <h2 class="text-2xl font-bold mb-4 flex items-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                </svg>
+                Data History
+            </h2>
+            <div class="bg-gray-900/50 p-4 rounded-lg">
+                <canvas id="data-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Serial Monitor -->
+        <div class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold flex items-center">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    Serial Monitor
+                </h2>
+                <button id="clear-serial" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all">
+                    Clear
+                </button>
+            </div>
+            
+            <div id="serial-output" class="bg-black p-4 rounded-lg h-64 overflow-y-auto font-mono text-sm text-green-400 shadow-inner"></div>
+            
+            <!-- Serial Input -->
+            <div class="mt-4 flex gap-2">
+                <input type="text" id="serial-input" placeholder="Send command to Arduino..." 
+                       class="flex-1 bg-gray-900 text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-blue-500 focus:outline-none"
+                       disabled>
+                <button id="send-serial" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-all" disabled>
+                    Send
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="mt-8 text-center text-gray-500 text-sm">
+            <p>Built with ❤️ using Web Serial API | Arduino Dashboard v1.0</p>
+            <p class="mt-1">Works best in Chrome or Edge browsers</p>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // GLOBAL STATE
+        // ============================================
+        let port = null;
+        let reader = null;
+        let writer = null;
+        let isConnected = false;
+        
+        // DOM Elements
+        const connectBtn = document.getElementById('connect-btn');
+        const statusCard = document.getElementById('status-card');
+        const serialOutput = document.getElementById('serial-output');
+        const serialInput = document.getElementById('serial-input');
+        const sendSerialBtn = document.getElementById('send-serial');
+        const clearSerialBtn = document.getElementById('clear-serial');
+
+        // ============================================
+        // CHART SETUP
+        // ============================================
+        const ctx = document.getElementById('data-chart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {{CHART_DATASETS}}
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            maxRotation: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.9)'
+                        }
+                    }
+                },
+                animation: {
+                    duration: 0
+                }
+            }
+        });
+
+        // ============================================
+        // CONNECTION MANAGEMENT
+        // ============================================
+        connectBtn.addEventListener('click', async () => {
+            try {
+                // Request port access
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: {{BAUD_RATE}} });
+                
+                // Update UI
+                updateConnectionStatus(true);
+                
+                // Setup streams
+                const textDecoder = new TextDecoderStream();
+                const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                reader = textDecoder.readable.getReader();
+                
+                const textEncoder = new TextEncoderStream();
+                const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+                writer = textEncoder.writable.getWriter();
+                
+                // Start reading
+                readSerialData();
+                
+            } catch (error) {
+                console.error('Connection error:', error);
+                alert('Failed to connect: ' + error.message);
+                updateConnectionStatus(false);
+            }
+        });
+
+        function updateConnectionStatus(connected) {
+            isConnected = connected;
+            
+            if (connected) {
+                statusCard.className = 'mb-6 p-4 rounded-xl bg-green-600/20 border-2 border-green-600 transition-all';
+                statusCard.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="status-dot bg-green-500 pulse-green"></span>
+                        <span class="font-bold text-green-300">Connected</span>
+                        <span class="ml-2 text-green-200">- Live data streaming</span>
+                    </div>
+                `;
+                connectBtn.disabled = true;
+                connectBtn.className = 'w-full bg-gray-600 text-gray-400 font-bold py-3 px-6 rounded-lg mb-4 cursor-not-allowed';
+                
+                // Enable controls
+                document.querySelectorAll('.control-btn').forEach(btn => btn.disabled = false);
+                serialInput.disabled = false;
+                sendSerialBtn.disabled = false;
+                
+            } else {
+                statusCard.className = 'mb-6 p-4 rounded-xl bg-yellow-600/20 border-2 border-yellow-600 transition-all';
+                statusCard.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="status-dot bg-yellow-500"></span>
+                        <span class="font-bold text-yellow-300">Not Connected</span>
+                        <span class="ml-2 text-yellow-200">- Click Connect to begin</span>
+                    </div>
+                `;
+            }
+        }
+
+        // ============================================
+        // SERIAL COMMUNICATION
+        // ============================================
+        async function readSerialData() {
+            let buffer = '';
+            
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        console.log('Reader closed');
+                        break;
+                    }
+                    
+                    buffer += value;
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
+                    
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            handleSerialLine(line.trim());
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Read error:', error);
+                updateConnectionStatus(false);
+            }
+        }
+
+        function handleSerialLine(line) {
+            // Display in serial monitor
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = 'hover:bg-gray-800 px-2 py-1 rounded';
+            div.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> ${escapeHtml(line)}`;
+            serialOutput.appendChild(div);
+            serialOutput.scrollTop = serialOutput.scrollHeight;
+            
+            // Parse and update UI
+            parseAndUpdateData(line);
+        }
+
+        async function sendCommand(command) {
+            if (!writer) {
+                console.error('Writer not initialized');
+                return;
+            }
+            
+            try {
+                await writer.write(command + '\n');
+                
+                // Echo to serial monitor
+                const timestamp = new Date().toLocaleTimeString();
+                const div = document.createElement('div');
+                div.className = 'text-blue-400 hover:bg-gray-800 px-2 py-1 rounded';
+                div.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> >>> ${escapeHtml(command)}`;
+                serialOutput.appendChild(div);
+                serialOutput.scrollTop = serialOutput.scrollHeight;
+                
+            } catch (error) {
+                console.error('Write error:', error);
+            }
+        }
+
+        // ============================================
+        // DATA PARSING & VISUALIZATION
+        // ============================================
+        function parseAndUpdateData(data) {
+            {{CUSTOM_PARSER}}
+        }
+
+        function updateChart(label, datasetIndex, value) {
+            const now = new Date().toLocaleTimeString();
+            
+            // Add data point
+            if (chart.data.datasets[datasetIndex]) {
+                chart.data.labels.push(now);
+                chart.data.datasets[datasetIndex].data.push(value);
+                
+                // Keep last 20 points
+                if (chart.data.labels.length > 20) {
+                    chart.data.labels.shift();
+                    chart.data.datasets.forEach(dataset => dataset.data.shift());
+                }
+                
+                chart.update();
+            }
+        }
+
+        // ============================================
+        // UI HELPERS
+        // ============================================
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Serial input
+        sendSerialBtn.addEventListener('click', () => {
+            const command = serialInput.value.trim();
+            if (command) {
+                sendCommand(command);
+                serialInput.value = '';
+            }
+        });
+
+        serialInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendSerialBtn.click();
+            }
+        });
+
+        // Clear serial monitor
+        clearSerialBtn.addEventListener('click', () => {
+            serialOutput.innerHTML = '';
+        });
+
+        // ============================================
+        // CUSTOM FUNCTIONS
+        // ============================================
+        {{CUSTOM_FUNCTIONS}}
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        console.log('Arduino Dashboard loaded');
+        console.log('Web Serial API supported:', 'serial' in navigator);
+        
+        if (!('serial' in navigator)) {
+            alert('Web Serial API not supported. Please use Chrome or Edge browser.');
+        }
+    </script>
+</body>
+</html>
