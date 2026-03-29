@@ -5,7 +5,7 @@
 
 // Registry: array of callback lists, one per event type
 static EventCallback subscribers[EVENT_COUNT][MAX_SUBSCRIBERS];
-static int subscriberCount[EVENT_COUNT];
+static uint8_t subscriberCount[EVENT_COUNT];
 
 void eventBusInit() {
   for (int i = 0; i < EVENT_COUNT; i++) {
@@ -28,6 +28,9 @@ void eventBusSubscribe(EventType event, EventCallback callback) {
   subscriberCount[event]++;
 }
 
+// NOTE: publish() is synchronous and re-entrant. Callbacks MUST NOT
+// subscribe or unsubscribe during execution. Recursive publish() calls
+// (a subscriber publishing a new event) are safe up to ~5 levels deep.
 void eventBusPublish(EventType event, int payload) {
   if (event >= EVENT_COUNT) return;
   for (int i = 0; i < subscriberCount[event]; i++) {
