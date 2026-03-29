@@ -9,6 +9,7 @@
 #define PIN_NEOPIXEL      1     // D0 — WS2812B RGB LED data
 #define PIN_BUTTON         2     // D1 — Tactile button (10kΩ pull-up)
 #define PIN_VIBRATION      3     // D2 — Vibration motor (Phase B, unused now)
+#define PIN_BATTERY        4     // D3/A2 — Battery voltage via voltage divider
 #define PIN_SD_CS         21    // SD card chip select (built-in)
 
 // ============================================

@@ -2,16 +2,9 @@
 #include "event_bus.h"
 #include "config.h"
 
-// XIAO ESP32S3 battery voltage pin
-// The board reads battery voltage through an internal voltage divider
-// ADC pin for battery on XIAO ESP32S3 is typically A0 / GPIO 1
-// But we're using GPIO 1 for NeoPixel — use the built-in battery read
-// XIAO ESP32S3 can read battery voltage on pin D0 when not used for other purpose
-// Alternative: use analogReadMilliVolts on a free ADC pin
-//
-// For XIAO ESP32S3, battery voltage monitoring uses internal ADC
-// The actual implementation depends on board revision.
-// We'll read from the battery voltage divider if available.
+// Battery voltage reading via external voltage divider on GPIO 4 (D3/A2).
+// TODO: Wire 100k/100k voltage divider from battery positive to GPIO 4.
+// Without the divider wired, readings will be 0V or erratic on USB power.
 
 static unsigned long lastCheck = 0;
 static int batteryPercent = 100;
@@ -37,10 +30,8 @@ void batteryMonitorUpdate() {
   if ((now - lastCheck) < BATTERY_CHECK_INTERVAL_MS) return;
   lastCheck = now;
 
-  // Read battery voltage via ADC
-  // XIAO ESP32S3 Sense: battery voltage through voltage divider
-  // Raw ADC → voltage conversion (adjust multiplier for your voltage divider)
-  int rawADC = analogRead(A0);
+  // Read battery voltage via ADC on dedicated pin (not A0 — that's the NeoPixel)
+  int rawADC = analogRead(PIN_BATTERY);
   float voltage = (rawADC / 4095.0) * 3.3 * 2.0;  // ×2 for voltage divider
 
   batteryPercent = voltageToPercent(voltage);
@@ -56,6 +47,7 @@ void batteryMonitorUpdate() {
     criticalFired = true;
     eventBusPublish(EVENT_BATTERY_CRITICAL, batteryPercent);
     Serial.println("[Battery] CRITICAL — initiating graceful shutdown");
+    esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTON), ESP_EXT1_WAKEUP_ANY_LOW);
     delay(1000);
     esp_deep_sleep_start();
   }
