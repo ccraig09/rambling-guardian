@@ -9,22 +9,36 @@ static bool speechActive = false;
 static int currentEnergy = 0;
 static int currentSensitivity = 1;  // Default mode 2 (index 1)
 
-// Calculate mean absolute amplitude from audio samples over a window
-static int calculateEnergy() {
-  long sum = 0;
-  int validSamples = 0;
+// VAD state machine
+static int aboveCount = 0;              // consecutive onset windows
+static unsigned long lastAboveTime = 0;  // millis() of last above-threshold window
 
+// Calculate energy with DC offset removal
+// PDM mics have a large DC offset (~1340 on this board).
+// We subtract the per-window mean so silence reads near zero.
+static int calculateEnergy() {
+  int16_t samples[AUDIO_SAMPLES_PER_WINDOW];
+  int validCount = 0;
+
+  // Pass 1: read all samples and compute mean (= DC offset)
+  long dcSum = 0;
   for (int i = 0; i < AUDIO_SAMPLES_PER_WINDOW; i++) {
     int sample = i2s.read();
-    // Filter invalid samples (0, -1, 1 are noise artifacts)
     if (sample != 0 && sample != -1 && sample != 1) {
-      sum += abs(sample);
-      validSamples++;
+      samples[validCount] = (int16_t)sample;
+      dcSum += sample;
+      validCount++;
     }
   }
+  if (validCount == 0) return 0;
+  int dcOffset = (int)(dcSum / validCount);
 
-  if (validSamples == 0) return 0;
-  return (int)(sum / validSamples);
+  // Pass 2: mean absolute deviation from DC offset
+  long energySum = 0;
+  for (int i = 0; i < validCount; i++) {
+    energySum += abs(samples[i] - dcOffset);
+  }
+  return (int)(energySum / validCount);
 }
 
 static void onSensitivityChanged(EventType event, int payload) {
@@ -49,14 +63,27 @@ void audioInputUpdate() {
   if (!i2sReady) return;
   currentEnergy = calculateEnergy();
   int threshold = VAD_THRESHOLDS[currentSensitivity];
-  bool isSpeech = (currentEnergy > threshold);
+  bool aboveThreshold = (currentEnergy > threshold);
 
-  if (isSpeech && !speechActive) {
+  if (aboveThreshold) {
+    aboveCount++;
+    lastAboveTime = millis();
+  }
+
+  // Onset: require 2 consecutive windows above threshold to start
+  if (!speechActive && aboveCount >= VAD_ONSET_WINDOWS) {
     speechActive = true;
     eventBusPublish(EVENT_SPEECH_STARTED, currentEnergy);
-  } else if (!isSpeech && speechActive) {
-    speechActive = false;
-    eventBusPublish(EVENT_SPEECH_ENDED, currentEnergy);
+  }
+
+  // Offset: only end speech after hangover period with no loud windows
+  // This bridges natural gaps between syllables/words (100-400ms)
+  if (speechActive && !aboveThreshold) {
+    if ((millis() - lastAboveTime) > VAD_HANGOVER_MS) {
+      speechActive = false;
+      aboveCount = 0;
+      eventBusPublish(EVENT_SPEECH_ENDED, currentEnergy);
+    }
   }
 }
 

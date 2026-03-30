@@ -18,12 +18,14 @@
 #define AUDIO_SAMPLE_RATE     16000   // 16kHz — sufficient for speech
 #define AUDIO_WINDOW_MS       100     // RMS energy window (100ms chunks)
 #define AUDIO_SAMPLES_PER_WINDOW ((AUDIO_SAMPLE_RATE * AUDIO_WINDOW_MS) / 1000)
-#define VAD_ENERGY_THRESHOLD  500     // Amplitude threshold for speech detection
-                                       // Tune this per environment (higher = less sensitive)
+#define VAD_ENERGY_THRESHOLD  150     // Amplitude threshold for speech detection
+                                       // After DC offset removal, silence ~0-50, speech ~200+
 #define VAD_SENSITIVITY_LEVELS 4      // Number of sensitivity presets
-// Sensitivity presets: threshold values for modes 1-4
-// Lower = more sensitive (catches quieter speech but more false positives)
-static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 300, 500, 800, 1200 };
+#define VAD_HANGOVER_MS       600     // Hold speech active 600ms after last loud window
+#define VAD_ONSET_WINDOWS     2       // Consecutive windows to confirm speech start
+// Sensitivity presets (post-DC-offset-removal values)
+// Silence reads ~0-50, speech reads ~200-2000+
+static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 80, 150, 300, 500 };
 
 // ============================================
 // Speech Timer Thresholds (milliseconds)
