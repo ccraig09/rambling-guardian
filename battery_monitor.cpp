@@ -6,7 +6,9 @@
 // TODO: Wire 100k/100k voltage divider from battery positive to GPIO 4.
 // Without the divider wired, readings will be 0V or erratic on USB power.
 
+// Skip first check to avoid false shutdown on USB power without battery
 static unsigned long lastCheck = 0;
+static bool firstCheckSkipped = false;
 static int batteryPercent = 100;
 static bool warningFired = false;
 static bool criticalFired = false;
@@ -41,6 +43,12 @@ void batteryMonitorUpdate() {
   Serial.print("V (");
   Serial.print(batteryPercent);
   Serial.println("%)");
+
+  // Skip shutdown logic if no battery is wired (voltage near zero on USB power)
+  if (voltage < 1.0) {
+    Serial.println("[Battery] No battery detected — skipping shutdown");
+    return;
+  }
 
   // Check thresholds
   if (batteryPercent <= BATTERY_SHUTDOWN_PERCENT && !criticalFired) {
