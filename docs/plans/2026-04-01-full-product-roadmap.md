@@ -73,8 +73,11 @@ Uses Carlos's established Foundation/Evolution model from Money Shepherd:
 
 **RG-A1.1: Create development workflow docs**
 - Create `PHASE_PLAN.md` with ticket tracking (checkbox format)
-- Create `AGENT_WORKFLOW.md` with per-ticket 5-step process (plan → implement → check → fix → summarize)
+  - **Every phase ends with:** `- [ ] Run revise-claude-md and commit`
+- Create `AGENT_WORKFLOW.md` with per-ticket 5-step process + phase boundary step
+  - **Step 6 (last ticket of each phase only):** Update CLAUDE.md via `revise-claude-md` — mandatory, not optional
 - Create `SELECTOR_PASS_PROMPT.md` template
+  - **Include "Phase boundary?" gate** — if last ticket in a phase, CLAUDE.md update required before marking complete
 - Create `SMOKE_TESTS.md` for Phase A verification
 - Reference: Money Shepherd's AGENT_WORKFLOW.md patterns
 
