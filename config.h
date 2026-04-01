@@ -21,20 +21,20 @@
 #define VAD_ENERGY_THRESHOLD  150     // Amplitude threshold for speech detection
                                        // After DC offset removal, silence ~0-50, speech ~200+
 #define VAD_SENSITIVITY_LEVELS 4      // Number of sensitivity presets
-#define VAD_HANGOVER_MS       600     // Hold speech active 600ms after last loud window
+#define VAD_HANGOVER_MS       1500    // Hold speech active 1.5s after last loud window
 #define VAD_ONSET_WINDOWS     2       // Consecutive windows to confirm speech start
 // Sensitivity presets (post-DC-offset-removal values)
 // Silence reads ~0-50, speech reads ~200-2000+
-static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 80, 150, 300, 500 };
+static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 
 // ============================================
 // Speech Timer Thresholds (milliseconds)
 // ============================================
 #define PAUSE_THRESHOLD_MS    1200    // 1.2s silence = timer reset
-#define ALERT_GENTLE_MS       7000    // 7 seconds continuous speech
-#define ALERT_MODERATE_MS    15000    // 15 seconds
-#define ALERT_URGENT_MS      30000    // 30 seconds
-#define ALERT_CRITICAL_MS    60000    // 60 seconds
+#define ALERT_GENTLE_MS       7000    // 7 seconds — yellow (2-3 sentences, awareness nudge)
+#define ALERT_MODERATE_MS    15000    // 15 seconds — orange (monologue territory)
+#define ALERT_URGENT_MS      30000    // 30 seconds — red (wrap it up)
+#define ALERT_CRITICAL_MS    60000    // 60 seconds — blinking red (hard stop)
 
 // ============================================
 // Button Timing (milliseconds)
@@ -54,7 +54,7 @@ static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 80, 150, 300, 500 };
 // ============================================
 // LED Settings
 // ============================================
-#define LED_NUM_PIXELS        1       // Single NeoPixel (or 8 for strip)
+#define LED_NUM_PIXELS        1       // Single WS2812B LED
 #define LED_BRIGHTNESS_FULL  50      // Max brightness (0-255, keep low for battery)
 #define LED_BRIGHTNESS_DIM   15      // Dimmed for low battery
 #define LED_BREATHE_SPEED_MS 2000    // Breathing animation cycle

@@ -7,7 +7,7 @@ static I2SClass i2s;
 static bool i2sReady = false;
 static bool speechActive = false;
 static int currentEnergy = 0;
-static int currentSensitivity = 1;  // Default mode 2 (index 1)
+static int currentSensitivity = 0;  // Default mode 1 (most sensitive, threshold 80)
 
 // VAD state machine
 static int aboveCount = 0;              // consecutive onset windows
@@ -16,29 +16,43 @@ static unsigned long lastAboveTime = 0;  // millis() of last above-threshold win
 // Calculate energy with DC offset removal
 // PDM mics have a large DC offset (~1340 on this board).
 // We subtract the per-window mean so silence reads near zero.
-static int calculateEnergy() {
-  int16_t samples[AUDIO_SAMPLES_PER_WINDOW];
-  int validCount = 0;
+static unsigned long lastDebugDump = 0;
 
-  // Pass 1: read all samples and compute mean (= DC offset)
-  long dcSum = 0;
-  for (int i = 0; i < AUDIO_SAMPLES_PER_WINDOW; i++) {
-    int sample = i2s.read();
-    if (sample != 0 && sample != -1 && sample != 1) {
-      samples[validCount] = (int16_t)sample;
-      dcSum += sample;
-      validCount++;
-    }
+static int calculateEnergy() {
+  static int16_t samples[AUDIO_SAMPLES_PER_WINDOW];
+
+  // Read all samples at once via DMA buffer — the correct way to use ESP32 I2S
+  size_t bytesRead = i2s.readBytes((char*)samples, sizeof(samples));
+  int sampleCount = bytesRead / sizeof(int16_t);
+  if (sampleCount == 0) return 0;
+
+  // Pass 1: compute DC offset (mean)
+  long long dcSum = 0;
+  for (int i = 0; i < sampleCount; i++) {
+    dcSum += samples[i];
   }
-  if (validCount == 0) return 0;
-  int dcOffset = (int)(dcSum / validCount);
+  int32_t dcOffset = (int32_t)(dcSum / sampleCount);
+
+  // Debug dump every 5 seconds
+  if (millis() - lastDebugDump > 5000) {
+    lastDebugDump = millis();
+    Serial.print("[Audio] Raw(10): ");
+    for (int i = 0; i < 10 && i < sampleCount; i++) {
+      Serial.print(samples[i]);
+      Serial.print(" ");
+    }
+    Serial.print(" | cnt=");
+    Serial.print(sampleCount);
+    Serial.print(" | dcOff=");
+    Serial.println(dcOffset);
+  }
 
   // Pass 2: mean absolute deviation from DC offset
-  long energySum = 0;
-  for (int i = 0; i < validCount; i++) {
-    energySum += abs(samples[i] - dcOffset);
+  long long energySum = 0;
+  for (int i = 0; i < sampleCount; i++) {
+    energySum += abs((int32_t)samples[i] - dcOffset);
   }
-  return (int)(energySum / validCount);
+  return (int)(energySum / sampleCount);
 }
 
 static void onSensitivityChanged(EventType event, int payload) {
