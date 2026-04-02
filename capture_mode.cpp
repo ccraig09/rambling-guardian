@@ -4,6 +4,7 @@
 #include "audio_input.h"
 #include "wav_writer.h"
 #include "sd_card.h"
+#include "session_logger.h"
 
 // ============================================
 // State Machine
@@ -37,6 +38,7 @@ static void startRecording() {
 
 static void stopRecording(const char* reason) {
   wavWriterClose();
+  sessionLoggerFlush();
   state = CAPTURE_IDLE;
   speechActive = false;
   eventBusPublish(EVENT_CAPTURE_STOPPED, 0);
