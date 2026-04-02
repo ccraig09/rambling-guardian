@@ -14,6 +14,10 @@ static int aboveCount = 0;              // consecutive onset windows
 static unsigned long lastAboveTime = 0;  // millis() of last above-threshold window
 static int calibratedBaseline = 0;  // set during boot calibration
 
+// Raw audio sample buffer — shared between calculateEnergy() and audioGetLastSamples()
+static int16_t sampleBuffer[AUDIO_SAMPLES_PER_WINDOW];
+static int lastSampleCount = 0;
+
 // Calculate energy with DC offset removal
 // PDM mics have a large DC offset (~1340 on this board).
 // We subtract the per-window mean so silence reads near zero.
@@ -22,17 +26,16 @@ static unsigned long lastDebugDump = 0;
 #endif
 
 static int calculateEnergy() {
-  static int16_t samples[AUDIO_SAMPLES_PER_WINDOW];
-
-  // Read all samples at once via DMA buffer — the correct way to use ESP32 I2S
-  size_t bytesRead = i2s.readBytes((char*)samples, sizeof(samples));
+  // Read into file-scope sampleBuffer so audioGetLastSamples() can access it
+  size_t bytesRead = i2s.readBytes((char*)sampleBuffer, sizeof(sampleBuffer));
   int sampleCount = bytesRead / sizeof(int16_t);
+  lastSampleCount = sampleCount;
   if (sampleCount == 0) return 0;
 
   // Pass 1: compute DC offset (mean)
   long long dcSum = 0;
   for (int i = 0; i < sampleCount; i++) {
-    dcSum += samples[i];
+    dcSum += sampleBuffer[i];
   }
   int32_t dcOffset = (int32_t)(dcSum / sampleCount);
 
@@ -42,7 +45,7 @@ static int calculateEnergy() {
     lastDebugDump = millis();
     Serial.print("[Audio] Raw(10): ");
     for (int i = 0; i < 10 && i < sampleCount; i++) {
-      Serial.print(samples[i]);
+      Serial.print(sampleBuffer[i]);
       Serial.print(" ");
     }
     Serial.print(" | cnt=");
@@ -55,7 +58,7 @@ static int calculateEnergy() {
   // Pass 2: mean absolute deviation from DC offset
   long long energySum = 0;
   for (int i = 0; i < sampleCount; i++) {
-    energySum += abs((int32_t)samples[i] - dcOffset);
+    energySum += abs((int32_t)sampleBuffer[i] - dcOffset);
   }
   return (int)(energySum / sampleCount);
 }
@@ -150,4 +153,11 @@ void audioSetSensitivity(int level) {
   if (level >= 0 && level < VAD_SENSITIVITY_LEVELS) {
     currentSensitivity = level;
   }
+}
+
+int audioGetLastSamples(const int16_t** buf) {
+  if (buf) {
+    *buf = sampleBuffer;
+  }
+  return lastSampleCount;
 }
