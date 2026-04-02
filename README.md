@@ -22,10 +22,9 @@ Detects continuous speech and alerts with escalating RGB LED colors:
 
 | Component | Pin | GPIO |
 |-----------|-----|------|
-| NeoPixel Data | D0 | GPIO 1 |
 | Button | D1 | GPIO 2 |
 | Button Pull-up | D1 → 3.3V | 10kΩ resistor |
-| Battery ADC | D3 | GPIO 4 (via voltage divider) |
+| Battery ADC | D3/A2 | GPIO 4 (via 100kΩ/100kΩ divider to battery+) |
 | Vibration Motor | D2 | GPIO 3 (Phase B, not wired yet) |
 | Microphone | Built-in | GPIO 41/42 (PDM) |
 

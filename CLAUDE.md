@@ -15,9 +15,10 @@ Wearable ADHD speech-duration monitor built on XIAO ESP32S3 Sense.
 | GPIO 41 | Microphone Data In (I2S PDM) — built-in, do not reassign |
 | GPIO 42 | Microphone Clock (I2S PDM) — built-in, do not reassign |
 | GPIO 21 | SD Card CS — built-in, do not reassign |
-| GPIO 1 (D0) | NeoPixel RGB LED data |
+| GPIO 1 (D0) | Reserved — originally for external NeoPixel, now unused (built-in LED used instead) |
 | GPIO 2 (D1) | Tactile button input (10kΩ pull-up to 3.3V) |
 | GPIO 3 (D2) | Reserved for vibration motor (Phase B) |
+| GPIO 4 (D3/A2) | Battery voltage ADC (100kΩ/100kΩ divider to battery+) |
 
 ## Build & Flash
 1. Open `rambling-guardian.ino` in Arduino IDE 2.x
