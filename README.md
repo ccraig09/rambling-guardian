@@ -13,7 +13,7 @@ Detects continuous speech and alerts with escalating RGB LED colors:
 
 ### Components
 - [Seeed XIAO ESP32S3 Sense](https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html)
-- WS2812B NeoPixel RGB LED
+- Built-in RGB LED (via `rgbLedWrite()`)
 - Tactile push button (6mm) + 10kΩ resistor
 - 400mAh LiPo battery + JST-PH 2.0 connector
 - Breadboard + jumper wires
@@ -39,12 +39,16 @@ Detects continuous speech and alerts with escalating RGB LED colors:
 1. Install [Arduino IDE 2.x](https://www.arduino.cc/en/software)
 2. Add ESP32 board support: `https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json`
 3. Install board: **esp32 by Espressif** in Board Manager
-4. Install library: **Adafruit NeoPixel** in Library Manager
-5. Select board: **XIAO_ESP32S3**
-6. Select PSRAM: **OPI PSRAM**
-7. Select partition: **Huge APP (3MB No OTA/1MB SPIFFS)**
-8. Connect board via USB-C, select port
-9. Upload
+4. Select board: **XIAO_ESP32S3**
+5. Select PSRAM: **OPI PSRAM**
+6. Select partition: **Huge APP (3MB No OTA/1MB SPIFFS)**
+7. Connect board via USB-C, select port
+8. Upload
+
+### CLI Build (optional)
+```
+arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:PSRAM=opi .
+```
 
 ## Serial Monitor
 

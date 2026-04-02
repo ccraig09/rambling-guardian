@@ -6,7 +6,7 @@ Wearable ADHD speech-duration monitor built on XIAO ESP32S3 Sense.
 - Board: Seeed XIAO ESP32S3 Sense
 - Language: C++ (Arduino IDE)
 - Audio: I2S PDM microphone (GPIO 41/42)
-- LED: WS2812B NeoPixel (Adafruit NeoPixel library)
+- LED: Built-in RGB via `rgbLedWrite()` (ESP32 Board Package — no external library needed)
 - Architecture: Event-driven (pub/sub event bus)
 
 ## Pin Assignments
@@ -28,9 +28,22 @@ Wearable ADHD speech-duration monitor built on XIAO ESP32S3 Sense.
 6. Upload: Click upload button
 7. Monitor: Tools → Serial Monitor (115200 baud)
 
+## Build Command (CLI)
+```
+arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:PSRAM=opi .
+```
+**NEVER** use `--build-property "build.extra_flags=..."` — it overrides `-DESP32=ESP32` and breaks the build.
+
 ## Architecture
 Modules communicate via event bus only — never call each other directly.
 Audio → VAD → SpeechTimer → EventBus → LED/Vibration/BLE subscribers.
+Debug serial prints are gated by `#define DEBUG_AUDIO` in config.h (commented out by default)
+
+## Workflow Docs
+- **Phase Plan:** `PHASE_PLAN.md` — living ticket checklist, current phase + all future phases
+- **Agent Workflow:** `AGENT_WORKFLOW.md` — 5-step per-ticket process, skills table, personas
+- **Selector Pass:** `SELECTOR_PASS_PROMPT.md` — pre-implementation checklist template
+- **Smoke Tests:** `SMOKE_TESTS.md` — Phase A.1 verification checklist
 
 ## Key Docs (all in this repo)
 - **Design Spec:** `docs/specs/2026-03-29-rambling-guardian-design.md` — full architecture, edge cases, all 5 phases
@@ -44,12 +57,20 @@ Audio → VAD → SpeechTimer → EventBus → LED/Vibration/BLE subscribers.
 - Each task dispatches a fresh subagent with full task text from the plan
 - Two-stage review after each task: spec compliance, then code quality
 - Commit after every task. Push frequently. Git activity matters.
+- Run `superpowers:requesting-code-review` BEFORE flashing firmware — never test unreviewed code
 
 ## User Context
 - Carlos is a frontend developer (React Native/TypeScript) learning hardware for the first time
 - Visual and experiential learner — use frontend analogies (GPIO = event listeners, loop() = render cycle)
 - Has ADHD — keep pace, don't slow down, teach inline
 - Owns: XIAO ESP32S3 Sense, SunFounder Kepler Kit (breadboard, wires, resistors, WS2812 strip, buttons, transistors), 400mAh LiPo battery, JST-PH 2.0 connectors, 25-pack tactile buttons, soldering kit, micro SD card
+
+## Future Companion App
+
+A React Native companion app is planned (see Design Spec Phase D). When that work begins:
+- Use `ui-mastery` skill for all UI tickets
+- Reference `~/Workspace/.design-kb/10-mobile-patterns.md` for React Native patterns
+- Add a `DESIGN.md` to this repo to capture the companion app's brand personality
 
 ## Non-Negotiables
 - Every task gets a git commit with conventional commit message
