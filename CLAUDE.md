@@ -39,6 +39,8 @@ arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:PSRAM=opi .
 Modules communicate via event bus only — never call each other directly.
 Audio → VAD → SpeechTimer → EventBus → LED/Vibration/BLE subscribers.
 Debug serial prints are gated by `#define DEBUG_AUDIO` in config.h (commented out by default)
+VAD auto-calibrates on boot (~6s): 5 warmup + 30 measurement windows × 200ms. Serial: `[Audio] Calibrated: ambient=XX, threshold=YY`
+Sensitivity levels (0–3) apply multipliers { 1, 2, 4, 8 } on calibrated baseline. Threshold capped at 80 — safe to boot mid-meeting.
 
 ## Workflow Docs
 - **Phase Plan:** `PHASE_PLAN.md` — living ticket checklist, current phase + all future phases
@@ -72,6 +74,14 @@ A React Native companion app is planned (see Design Spec Phase D). When that wor
 - Use `ui-mastery` skill for all UI tickets
 - Reference `~/Workspace/.design-kb/10-mobile-patterns.md` for React Native patterns
 - Add a `DESIGN.md` to this repo to capture the companion app's brand personality
+
+## IDE / Tooling Notes
+- **LSP diagnostics are always false positives** — clang has no Arduino headers; `Serial`, `millis()`, `I2SClass` etc. always show as errors in the IDE. Ignore them. `arduino-cli compile` is the only truth.
+- **GitHub milestones:** `gh milestone` is not a valid CLI command — use `gh api repos/{owner}/{repo}/milestones` instead.
+
+## Learning Materials (NotebookLM)
+- Notebook: "Rambling Guardian - Hardware Setup for Visual Learners" (ID: `497bb0ca-4dec-4c34-85e9-1d9e2b3071f3`)
+- **Skip per-phase updates** — generate all C++ learning materials as a single teaching session at project end
 
 ## Non-Negotiables
 - Every task gets a git commit with conventional commit message
