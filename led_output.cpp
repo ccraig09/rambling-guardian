@@ -6,6 +6,7 @@
 static AlertLevel currentAlert = ALERT_NONE;
 static DeviceMode currentMode = MODE_MONITORING;
 static uint8_t brightness = LED_BRIGHTNESS_FULL;
+static bool captureActive = false;
 
 // Animation rate-limiting
 static unsigned long lastLedUpdate = 0;
@@ -34,6 +35,14 @@ static void onBatteryLow(EventType event, int payload) {
   brightness = LED_BRIGHTNESS_DIM;
 }
 
+static void onCaptureStarted(EventType event, int payload) {
+  captureActive = true;
+}
+
+static void onCaptureStopped(EventType event, int payload) {
+  captureActive = false;
+}
+
 // Smooth breathing effect — returns multiplier 0.0-1.0
 static float breathe() {
   unsigned long now = millis();
@@ -47,6 +56,8 @@ void ledOutputInit() {
   eventBusSubscribe(EVENT_ALERT_LEVEL_CHANGED, onAlertChanged);
   eventBusSubscribe(EVENT_MODE_CHANGED, onModeChanged);
   eventBusSubscribe(EVENT_BATTERY_LOW, onBatteryLow);
+  eventBusSubscribe(EVENT_CAPTURE_STARTED, onCaptureStarted);
+  eventBusSubscribe(EVENT_CAPTURE_STOPPED, onCaptureStopped);
 
   Serial.println("[LED] NeoPixel initialized");
 }
@@ -55,6 +66,12 @@ void ledOutputUpdate() {
   unsigned long now = millis();
   if (now - lastLedUpdate < 20) return;  // 50 Hz refresh
   lastLedUpdate = now;
+
+  // Capture mode override: solid magenta during recording
+  if (captureActive) {
+    writeLed(255, 0, 255);
+    return;
+  }
 
   if (currentMode == MODE_PRESENTATION) {
     float b = breathe();

@@ -11,6 +11,7 @@
 #include "mode_manager.h"
 #include "battery_monitor.h"
 #include "sd_card.h"
+#include "capture_mode.h"
 
 void setup() {
   Serial.begin(115200);
@@ -25,6 +26,7 @@ void setup() {
   modeManagerInit();
   batteryMonitorInit();
   sdCardInit();
+  captureModeInit();
 
   Serial.println("=== System ready ===");
   Serial.println("Modes: single-press = presentation, long-press = sleep");
@@ -60,6 +62,7 @@ void loop() {
   ledOutputUpdate();
   buttonInputUpdate();
   batteryMonitorUpdate();
+  captureModeUpdate();
 
 #ifdef DEBUG_AUDIO
   // Debug: show mic energy every 500ms so you can SEE what the mic hears

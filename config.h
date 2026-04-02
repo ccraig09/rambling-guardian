@@ -64,6 +64,11 @@ static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 #define BATTERY_DIM_PERCENT        15     // Reduce LED brightness
 
 // ============================================
+// Capture Mode
+// ============================================
+#define CAPTURE_SILENCE_TIMEOUT_MS  5000   // Auto-stop recording after 5s silence
+
+// ============================================
 // LED Settings
 // ============================================
 #define LED_NUM_PIXELS        1       // Single WS2812B LED
