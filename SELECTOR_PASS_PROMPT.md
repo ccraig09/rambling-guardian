@@ -24,6 +24,8 @@ Search for existing functions/patterns before writing new ones:
 ### 4. Skills (2–4)
 - [ ] Skill 1: `skill-name`
 - [ ] Skill 2: `skill-name`
+- [ ] Skill 3 (optional): `skill-name`
+- [ ] Skill 4 (optional): `skill-name`
 
 ### 5. Expert Persona
 "For this ticket I am a [role] with [X years] experience in [domain]."
@@ -45,3 +47,7 @@ What could go wrong? What's the mitigation?
 | Risk | Likelihood | Mitigation |
 |------|-----------|-----------|
 | | | |
+
+### 9. Commit Message
+Conventional commit format: `type: description`
+- [ ] Commit message: `________`

@@ -49,6 +49,7 @@ When completing the final ticket of a phase:
 2. Capture: new tech stack items, new commands, new non-negotiables, new docs
 3. Commit the updated CLAUDE.md
 4. Mark `- [ ] Run revise-claude-md and commit` as `- [x]` in PHASE_PLAN.md
+4. Commit PHASE_PLAN.md along with the updated CLAUDE.md
 
 If you skip this step, the next session starts with stale context.
 
@@ -64,6 +65,8 @@ If you skip this step, the next session starts with stale context.
 | C firmware | `embedded-programmer`, `solid`, `context7`, `verification-before-completion` |
 | C app | `react-native-architecture`, `solid`, `brainstorming`, `test-driven-development` |
 | D | `claude-api`, `test-driven-development`, `context7`, `solid` |
+| E | `embedded-programmer`, `claude-api`, `test-driven-development`, `context7` |
+| F | `embedded-programmer`, `solid`, `verification-before-completion` |
 
 ---
 

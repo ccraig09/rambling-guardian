@@ -6,6 +6,8 @@ Living ticket tracker. Check off as completed.
 
 ## Phase A.1 — Dev Workflow Setup + Code Cleanup
 
+<!-- Note: Phases A.2–A.4 are not standalone phases — A.1 covers cleanup and workflow setup, then we jump to A.5 (SD card). This is intentional. -->
+
 - [x] RG-A1.1: Create development workflow docs
 - [ ] RG-A1.2: Update CLAUDE.md and README
 - [ ] RG-A1.3: Code cleanup from code review

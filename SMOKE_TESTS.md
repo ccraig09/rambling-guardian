@@ -33,13 +33,15 @@ Run after all Phase A.1 tickets are complete to verify the phase is working.
 - [ ] Double-tap button still cycles sensitivity after calibration
 
 ### NotebookLM
-- [ ] Existing notebook has "C++ for JavaScript Developers" source added
+- [ ] Existing notebook (ID starts with `497bb0ca`) has "C++ for JavaScript Developers" source added
 - [ ] Slide deck generated: "C++ for JavaScript Developers"
 - [ ] Video generated: "How the Event Bus Works (Redux vs ESP32)"
 
 ### GitHub
 - [ ] Milestones created: A.1, A.5, B, C, D, E, F
+  Run: `gh milestone list` to verify
 - [ ] Issues created for RG-A1.1 through RG-A1.6, assigned to Phase A.1 milestone
+  Run: `gh issue list --milestone "Phase A.1"` to verify
 
 ---
 
