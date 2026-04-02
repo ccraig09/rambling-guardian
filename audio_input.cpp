@@ -81,10 +81,13 @@ static void calibrateVAD() {
   }
 
   int ambientEnergy = (int)(totalEnergy / VAD_CALIBRATION_WINDOWS);
-  calibratedBaseline = max(ambientEnergy * VAD_CALIBRATION_MULTIPLIER, VAD_MIN_THRESHOLD);
+  int rawThreshold = max(ambientEnergy * VAD_CALIBRATION_MULTIPLIER, VAD_MIN_THRESHOLD);
+  calibratedBaseline = min(rawThreshold, VAD_MAX_CALIBRATED_THRESHOLD);
 
   if (ambientEnergy == 0) {
     Serial.println("[Audio] WARNING: ambient=0 — I2S may not be ready, using minimum threshold");
+  } else if (rawThreshold > VAD_MAX_CALIBRATED_THRESHOLD) {
+    Serial.println("[Audio] WARNING: High ambient noise detected — threshold capped. Boot in silence for best results.");
   }
   Serial.print("[Audio] Calibrated: ambient=");
   Serial.print(ambientEnergy);

@@ -36,6 +36,8 @@ static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 #define VAD_CALIBRATION_WINDOWS   30     // 30 × 100ms = 3 seconds of sampling
 #define VAD_CALIBRATION_MULTIPLIER 3     // threshold = ambient × this multiplier
 #define VAD_MIN_THRESHOLD         20     // floor — never go below this even in silence
+#define VAD_MAX_CALIBRATED_THRESHOLD 80  // ceiling — caps threshold if you boot mid-meeting or mid-noise
+                                          // Speech reads 200+, so 80 still reliably triggers on speech
 
 // ============================================
 // Speech Timer Thresholds (milliseconds)
