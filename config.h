@@ -2,6 +2,11 @@
 #define CONFIG_H
 
 // ============================================
+// Debug Flags (uncomment to enable)
+// ============================================
+// #define DEBUG_AUDIO   // Enable verbose audio debug output (energy dumps, DC offset)
+
+// ============================================
 // Pin Assignments
 // ============================================
 #define PIN_MIC_DATA      41    // I2S PDM data in (built-in mic)

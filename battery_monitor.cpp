@@ -6,9 +6,7 @@
 // TODO: Wire 100k/100k voltage divider from battery positive to GPIO 4.
 // Without the divider wired, readings will be 0V or erratic on USB power.
 
-// Skip first check to avoid false shutdown on USB power without battery
 static unsigned long lastCheck = 0;
-static bool firstCheckSkipped = false;
 static int batteryPercent = 100;
 static bool warningFired = false;
 static bool criticalFired = false;

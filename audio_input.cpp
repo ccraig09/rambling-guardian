@@ -16,7 +16,9 @@ static unsigned long lastAboveTime = 0;  // millis() of last above-threshold win
 // Calculate energy with DC offset removal
 // PDM mics have a large DC offset (~1340 on this board).
 // We subtract the per-window mean so silence reads near zero.
+#ifdef DEBUG_AUDIO
 static unsigned long lastDebugDump = 0;
+#endif
 
 static int calculateEnergy() {
   static int16_t samples[AUDIO_SAMPLES_PER_WINDOW];
@@ -33,6 +35,7 @@ static int calculateEnergy() {
   }
   int32_t dcOffset = (int32_t)(dcSum / sampleCount);
 
+#ifdef DEBUG_AUDIO
   // Debug dump every 5 seconds
   if (millis() - lastDebugDump > 5000) {
     lastDebugDump = millis();
@@ -46,6 +49,7 @@ static int calculateEnergy() {
     Serial.print(" | dcOff=");
     Serial.println(dcOffset);
   }
+#endif
 
   // Pass 2: mean absolute deviation from DC offset
   long long energySum = 0;

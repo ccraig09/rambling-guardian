@@ -59,6 +59,7 @@ void loop() {
   buttonInputUpdate();
   batteryMonitorUpdate();
 
+#ifdef DEBUG_AUDIO
   // Debug: show mic energy every 500ms so you can SEE what the mic hears
   static unsigned long lastPrint = 0;
   if (millis() - lastPrint > 500) {
@@ -79,4 +80,5 @@ void loop() {
     Serial.println("s");
     lastPrint = millis();
   }
+#endif
 }
