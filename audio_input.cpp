@@ -12,6 +12,7 @@ static int currentSensitivity = 0;  // Default mode 1 (most sensitive, threshold
 // VAD state machine
 static int aboveCount = 0;              // consecutive onset windows
 static unsigned long lastAboveTime = 0;  // millis() of last above-threshold window
+static int calibratedBaseline = 0;  // set during boot calibration
 
 // Calculate energy with DC offset removal
 // PDM mics have a large DC offset (~1340 on this board).
@@ -63,6 +64,25 @@ static void onSensitivityChanged(EventType event, int payload) {
   audioSetSensitivity(payload);
 }
 
+static void calibrateVAD() {
+  Serial.println("[Audio] Calibrating VAD — measuring ambient noise for 3 seconds...");
+
+  long totalEnergy = 0;
+  for (int i = 0; i < VAD_CALIBRATION_WINDOWS; i++) {
+    int energy = calculateEnergy();
+    totalEnergy += energy;
+    delay(AUDIO_WINDOW_MS);  // 100ms between windows
+  }
+
+  int ambientEnergy = (int)(totalEnergy / VAD_CALIBRATION_WINDOWS);
+  calibratedBaseline = max(ambientEnergy * VAD_CALIBRATION_MULTIPLIER, VAD_MIN_THRESHOLD);
+
+  Serial.print("[Audio] Calibrated: ambient=");
+  Serial.print(ambientEnergy);
+  Serial.print(", threshold=");
+  Serial.println(calibratedBaseline);
+}
+
 void audioInputInit() {
   i2s.setPinsPdmRx(PIN_MIC_CLK, PIN_MIC_DATA);
 
@@ -73,6 +93,7 @@ void audioInputInit() {
   }
 
   i2sReady = true;
+  calibrateVAD();  // measure ambient noise and set initial threshold
   eventBusSubscribe(EVENT_SENSITIVITY_CHANGED, onSensitivityChanged);
   Serial.println("[Audio] Microphone initialized (PDM RX, 16kHz, 16-bit mono)");
 }
@@ -80,7 +101,11 @@ void audioInputInit() {
 void audioInputUpdate() {
   if (!i2sReady) return;
   currentEnergy = calculateEnergy();
-  int threshold = VAD_THRESHOLDS[currentSensitivity];
+  // Apply sensitivity level as a multiplier on top of calibrated baseline
+  static const int SENSITIVITY_MULTIPLIERS[VAD_SENSITIVITY_LEVELS] = { 1, 2, 4, 8 };
+  int threshold = (calibratedBaseline > 0)
+    ? calibratedBaseline * SENSITIVITY_MULTIPLIERS[currentSensitivity]
+    : VAD_THRESHOLDS[currentSensitivity];
   bool aboveThreshold = (currentEnergy > threshold);
 
   if (aboveThreshold) {

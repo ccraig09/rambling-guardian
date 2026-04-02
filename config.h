@@ -32,6 +32,11 @@
 // Silence reads ~0-50, speech reads ~200-2000+
 static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 
+// VAD Auto-Calibration (boot-time ambient measurement)
+#define VAD_CALIBRATION_WINDOWS   30     // 30 × 100ms = 3 seconds of sampling
+#define VAD_CALIBRATION_MULTIPLIER 3     // threshold = ambient × this multiplier
+#define VAD_MIN_THRESHOLD         20     // floor — never go below this even in silence
+
 // ============================================
 // Speech Timer Thresholds (milliseconds)
 // ============================================
