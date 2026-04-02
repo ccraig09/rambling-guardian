@@ -7,7 +7,7 @@ static I2SClass i2s;
 static bool i2sReady = false;
 static bool speechActive = false;
 static int currentEnergy = 0;
-static int currentSensitivity = 0;  // Default mode 1 (most sensitive, threshold 80)
+static int currentSensitivity = 0;  // Default: most sensitive (sensitivity level 0)
 
 // VAD state machine
 static int aboveCount = 0;              // consecutive onset windows
@@ -65,7 +65,13 @@ static void onSensitivityChanged(EventType event, int payload) {
 }
 
 static void calibrateVAD() {
-  Serial.println("[Audio] Calibrating VAD — measuring ambient noise for 3 seconds...");
+  Serial.println("[Audio] Calibrating VAD — sampling ambient noise (~6 seconds)...");
+
+  // Discard first 5 windows — I2S PDM hardware needs time to settle after begin()
+  for (int i = 0; i < 5; i++) {
+    calculateEnergy();
+    delay(AUDIO_WINDOW_MS);
+  }
 
   long totalEnergy = 0;
   for (int i = 0; i < VAD_CALIBRATION_WINDOWS; i++) {
@@ -77,6 +83,9 @@ static void calibrateVAD() {
   int ambientEnergy = (int)(totalEnergy / VAD_CALIBRATION_WINDOWS);
   calibratedBaseline = max(ambientEnergy * VAD_CALIBRATION_MULTIPLIER, VAD_MIN_THRESHOLD);
 
+  if (ambientEnergy == 0) {
+    Serial.println("[Audio] WARNING: ambient=0 — I2S may not be ready, using minimum threshold");
+  }
   Serial.print("[Audio] Calibrated: ambient=");
   Serial.print(ambientEnergy);
   Serial.print(", threshold=");
