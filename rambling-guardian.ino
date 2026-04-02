@@ -10,6 +10,7 @@
 #include "button_input.h"
 #include "mode_manager.h"
 #include "battery_monitor.h"
+#include "sd_card.h"
 
 void setup() {
   Serial.begin(115200);
@@ -23,6 +24,7 @@ void setup() {
   buttonInputInit();
   modeManagerInit();
   batteryMonitorInit();
+  sdCardInit();
 
   Serial.println("=== System ready ===");
   Serial.println("Modes: single-press = presentation, long-press = sleep");

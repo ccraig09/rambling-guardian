@@ -17,6 +17,7 @@ enum EventType {
   EVENT_BATTERY_LOW,           // Battery below warning threshold
   EVENT_BATTERY_CRITICAL,      // Battery below shutdown threshold
   EVENT_SENSITIVITY_CHANGED,   // VAD sensitivity level changed (payload = index)
+  EVENT_SD_READY,              // SD card status (payload: 1 = ready, 0 = not available)
   EVENT_COUNT                  // Total number of event types
 };
 
