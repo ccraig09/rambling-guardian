@@ -20,11 +20,11 @@ Living ticket tracker. Check off as completed.
 
 ## Phase A.5 — SD Card Voice Note Capture
 
-- [ ] RG-A5.1: SD card initialization and FAT32 mount
-- [ ] RG-A5.2: WAV file writer with audio buffering
-- [ ] RG-A5.3: Capture mode state machine
-- [ ] RG-A5.4: Session metadata logger
-- [ ] Run revise-claude-md and commit
+- [x] RG-A5.1: SD card initialization and FAT32 mount
+- [x] RG-A5.2: WAV file writer with audio buffering
+- [x] RG-A5.3: Capture mode state machine
+- [x] RG-A5.4: Session metadata logger
+- [x] Run revise-claude-md and commit
 
 ---
 
