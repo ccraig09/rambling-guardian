@@ -51,11 +51,21 @@ void sdCardInit() {
 
   // Create directory structure: /RG/recordings/
   if (!SD.exists("/RG")) {
-    SD.mkdir("/RG");
+    if (!SD.mkdir("/RG")) {
+      Serial.println("[SD] ERROR: Failed to create /RG — recording disabled");
+      cardReady = false;
+      eventBusPublish(EVENT_SD_READY, 0);
+      return;
+    }
     Serial.println("[SD] Created /RG");
   }
   if (!SD.exists("/RG/recordings")) {
-    SD.mkdir("/RG/recordings");
+    if (!SD.mkdir("/RG/recordings")) {
+      Serial.println("[SD] ERROR: Failed to create /RG/recordings — recording disabled");
+      cardReady = false;
+      eventBusPublish(EVENT_SD_READY, 0);
+      return;
+    }
     Serial.println("[SD] Created /RG/recordings");
   }
 
