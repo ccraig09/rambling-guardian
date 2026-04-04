@@ -20,7 +20,11 @@ static void logCardType(uint8_t type) {
 void sdCardInit() {
   Serial.println("[SD] Initializing SD card...");
 
-  if (!SD.begin(PIN_SD_CS)) {
+  // XIAO ESP32S3 Sense expansion board uses non-default SPI pins for SD card:
+  // SCK=GPIO7, MISO=GPIO8, MOSI=GPIO9, CS=GPIO21
+  SPI.begin(7, 8, 9, PIN_SD_CS);
+
+  if (!SD.begin(PIN_SD_CS, SPI, 4000000)) {
     Serial.println("[SD] No card detected — recording disabled");
     cardReady = false;
     eventBusPublish(EVENT_SD_READY, 0);

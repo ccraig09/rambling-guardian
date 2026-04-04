@@ -3,7 +3,6 @@
 #include "config.h"
 
 static DeviceMode currentMode = MODE_MONITORING;
-static int vadSensitivity = 1;  // Index into VAD_THRESHOLDS (mode 2 = index 1)
 
 static void onButtonEvent(EventType event, int payload) {
   if (event == EVENT_BUTTON_SINGLE) {
@@ -18,16 +17,8 @@ static void onButtonEvent(EventType event, int payload) {
     eventBusPublish(EVENT_MODE_CHANGED, (int)currentMode);
   }
 
-  else if (event == EVENT_BUTTON_DOUBLE) {
-    // Cycle VAD sensitivity
-    vadSensitivity = (vadSensitivity + 1) % VAD_SENSITIVITY_LEVELS;
-    eventBusPublish(EVENT_SENSITIVITY_CHANGED, vadSensitivity);
-    Serial.print("[Mode] VAD sensitivity: mode ");
-    Serial.print(vadSensitivity + 1);
-    Serial.print(" (threshold: ");
-    Serial.print(VAD_THRESHOLDS[vadSensitivity]);
-    Serial.println(")");
-  }
+  // Double-press is now reserved for capture mode (Phase A.5)
+  // Sensitivity cycling removed — will be configurable via companion app (Phase C)
 
   else if (event == EVENT_BUTTON_LONG) {
     // Enter deep sleep
@@ -44,7 +35,6 @@ void modeManagerInit() {
   esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTON), ESP_EXT1_WAKEUP_ANY_LOW);
 
   eventBusSubscribe(EVENT_BUTTON_SINGLE, onButtonEvent);
-  eventBusSubscribe(EVENT_BUTTON_DOUBLE, onButtonEvent);
   eventBusSubscribe(EVENT_BUTTON_LONG, onButtonEvent);
 
   Serial.println("[Mode] Manager initialized (MONITORING mode)");
