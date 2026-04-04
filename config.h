@@ -52,7 +52,7 @@ static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 // Button Timing (milliseconds)
 // ============================================
 #define BUTTON_DEBOUNCE_MS    50      // Debounce window
-#define BUTTON_MULTI_TAP_MS  300     // Window to detect multi-tap
+#define BUTTON_MULTI_TAP_MS  500     // Window to detect multi-tap (500ms = comfortable double-click speed)
 #define BUTTON_LONG_PRESS_MS 3000    // Long press threshold
 
 // ============================================

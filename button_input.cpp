@@ -2,68 +2,87 @@
 #include "event_bus.h"
 #include "config.h"
 
-static bool lastState = HIGH;        // Pull-up means HIGH when not pressed
-static bool buttonDown = false;
-static unsigned long pressStartTime = 0;
-static unsigned long lastReleaseTime = 0;
-static int tapCount = 0;
+// ============================================
+// Interrupt-driven button capture
+// ============================================
+// The main loop is slow (~100ms per cycle due to blocking I2S reads).
+// Polling the button in loop() misses quick taps.
+// Instead, a GPIO interrupt captures every press/release instantly,
+// and buttonInputUpdate() processes the accumulated taps.
+//
+// Think of it like push notifications (interrupt) vs checking your
+// phone every 10 seconds (polling). You never miss a tap now.
+
+// ISR state — volatile because shared between interrupt and main code
+static volatile int isrTapCount = 0;
+static volatile unsigned long isrLastPressTime = 0;
+static volatile unsigned long isrLastReleaseTime = 0;
+static volatile bool isrButtonDown = false;
+
+// Main-loop state
 static bool longPressFired = false;
+
+// ISR: fires on every button state change (press or release)
+// Runs in microseconds — no Serial prints or blocking calls allowed
+void IRAM_ATTR buttonISR() {
+  unsigned long now = millis();
+  bool pressed = (digitalRead(PIN_BUTTON) == LOW);  // Active low with pull-up
+
+  if (pressed && !isrButtonDown) {
+    // Button just pressed — debounce check
+    if (now - isrLastReleaseTime > BUTTON_DEBOUNCE_MS) {
+      isrButtonDown = true;
+      isrLastPressTime = now;
+    }
+  } else if (!pressed && isrButtonDown) {
+    // Button just released — debounce check
+    if (now - isrLastPressTime > BUTTON_DEBOUNCE_MS) {
+      isrButtonDown = false;
+      isrLastReleaseTime = now;
+      isrTapCount++;
+    }
+  }
+}
 
 void buttonInputInit() {
   pinMode(PIN_BUTTON, INPUT_PULLUP);
-  Serial.println("[Button] Initialized on GPIO " + String(PIN_BUTTON));
+  attachInterrupt(digitalPinToInterrupt(PIN_BUTTON), buttonISR, CHANGE);
+  Serial.println("[Button] Initialized on GPIO " + String(PIN_BUTTON) + " (interrupt-driven)");
 }
 
 void buttonInputUpdate() {
-  bool currentState = digitalRead(PIN_BUTTON);
   unsigned long now = millis();
 
-  // Debounce
-  static unsigned long lastChange = 0;
-  if (currentState != lastState) {
-    lastChange = now;
+  // Long press: button held down for 3+ seconds
+  if (isrButtonDown && !longPressFired && (now - isrLastPressTime >= BUTTON_LONG_PRESS_MS)) {
+    longPressFired = true;
+    noInterrupts();
+    isrTapCount = 0;  // Cancel any accumulated taps
+    interrupts();
+    eventBusPublish(EVENT_BUTTON_LONG, 0);
+    Serial.println("[Button] Long press");
   }
-  lastState = currentState;
-  if ((now - lastChange) < BUTTON_DEBOUNCE_MS) return;
 
-  bool pressed = (currentState == LOW);  // Active low with pull-up
-
-  // Button just pressed
-  if (pressed && !buttonDown) {
-    buttonDown = true;
-    pressStartTime = now;
+  // Reset long press flag after release
+  if (!isrButtonDown && longPressFired) {
     longPressFired = false;
   }
 
-  // Button held — check for long press
-  if (pressed && buttonDown && !longPressFired) {
-    if ((now - pressStartTime) >= BUTTON_LONG_PRESS_MS) {
-      longPressFired = true;
-      tapCount = 0;
-      eventBusPublish(EVENT_BUTTON_LONG, 0);
-      Serial.println("[Button] Long press");
-    }
-  }
-
-  // Button just released
-  if (!pressed && buttonDown) {
-    buttonDown = false;
-    if (!longPressFired) {
-      tapCount++;
-      lastReleaseTime = now;
-    }
-  }
-
   // Multi-tap window expired — fire appropriate event
-  if (tapCount > 0 && !buttonDown && (now - lastReleaseTime) > BUTTON_MULTI_TAP_MS) {
-    if (tapCount == 1) {
+  if (isrTapCount > 0 && !isrButtonDown && (now - isrLastReleaseTime > BUTTON_MULTI_TAP_MS)) {
+    // Atomically read and reset tap count (prevent ISR race condition)
+    noInterrupts();
+    int taps = isrTapCount;
+    isrTapCount = 0;
+    interrupts();
+
+    if (taps == 1) {
       eventBusPublish(EVENT_BUTTON_SINGLE, 0);
       Serial.println("[Button] Single press");
-    } else if (tapCount == 2) {
+    } else if (taps == 2) {
       eventBusPublish(EVENT_BUTTON_DOUBLE, 0);
       Serial.println("[Button] Double press");
     }
-    // Triple+ reserved for future phases
-    tapCount = 0;
+    // Triple+ reserved for Phase B (alert modality toggle)
   }
 }
