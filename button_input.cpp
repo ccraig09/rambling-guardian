@@ -82,7 +82,9 @@ void buttonInputUpdate() {
     } else if (taps == 2) {
       eventBusPublish(EVENT_BUTTON_DOUBLE, 0);
       Serial.println("[Button] Double press");
+    } else if (taps == 3) {
+      eventBusPublish(EVENT_BUTTON_TRIPLE, 0);
+      Serial.println("[Button] Triple press");
     }
-    // Triple+ reserved for Phase B (alert modality toggle)
   }
 }

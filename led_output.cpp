@@ -5,6 +5,7 @@
 
 static AlertLevel currentAlert = ALERT_NONE;
 static DeviceMode currentMode = MODE_MONITORING;
+static AlertModality currentModality = MODALITY_BOTH;
 static uint8_t brightness = LED_BRIGHTNESS_FULL;
 static bool captureActive = false;
 
@@ -31,6 +32,10 @@ static void onModeChanged(EventType event, int payload) {
   currentMode = (DeviceMode)payload;
 }
 
+static void onModalityChanged(EventType event, int payload) {
+  currentModality = (AlertModality)payload;
+}
+
 static void onBatteryLow(EventType event, int payload) {
   brightness = LED_BRIGHTNESS_DIM;
 }
@@ -55,6 +60,7 @@ void ledOutputInit() {
 
   eventBusSubscribe(EVENT_ALERT_LEVEL_CHANGED, onAlertChanged);
   eventBusSubscribe(EVENT_MODE_CHANGED, onModeChanged);
+  eventBusSubscribe(EVENT_MODALITY_CHANGED, onModalityChanged);
   eventBusSubscribe(EVENT_BATTERY_LOW, onBatteryLow);
   eventBusSubscribe(EVENT_CAPTURE_STARTED, onCaptureStarted);
   eventBusSubscribe(EVENT_CAPTURE_STOPPED, onCaptureStopped);
@@ -82,7 +88,13 @@ void ledOutputUpdate() {
     return;
   }
 
-  // Monitoring mode
+  // Monitoring mode — suppress visual alerts if modality is vibration-only
+  if (currentModality == MODALITY_VIBRATION_ONLY) {
+    float b = breathe();
+    writeLed(0, (uint8_t)(40 * b), 0);  // Breathing green (no alert colors)
+    return;
+  }
+
   switch (currentAlert) {
     case ALERT_NONE: {
       float b = breathe();

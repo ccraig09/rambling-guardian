@@ -4,6 +4,7 @@
 
 // Current alert level (updated by event callback)
 static AlertLevel currentAlert = ALERT_NONE;
+static AlertModality currentModality = MODALITY_BOTH;
 
 // Animation timing
 static unsigned long patternStartMs = 0;   // When current pattern cycle began
@@ -20,6 +21,14 @@ static bool motorOn = false;
 static void motorWrite(uint8_t duty) {
   analogWrite(PIN_VIBRATION, duty);
   motorOn = (duty > 0);
+}
+
+static void onModalityChanged(EventType event, int payload) {
+  currentModality = (AlertModality)payload;
+  // If switching to LED-only, immediately kill motor
+  if (currentModality == MODALITY_LED_ONLY && motorOn) {
+    motorWrite(0);
+  }
 }
 
 static void onAlertChanged(EventType event, int payload) {
@@ -46,11 +55,18 @@ void vibrationOutputInit() {
   analogWrite(PIN_VIBRATION, 0);
 
   eventBusSubscribe(EVENT_ALERT_LEVEL_CHANGED, onAlertChanged);
+  eventBusSubscribe(EVENT_MODALITY_CHANGED, onModalityChanged);
 
   Serial.println("[Vibration] Motor initialized on GPIO " + String(PIN_VIBRATION));
 }
 
 void vibrationOutputUpdate() {
+  // Suppress vibration if modality is LED-only
+  if (currentModality == MODALITY_LED_ONLY) {
+    if (motorOn) motorWrite(0);
+    return;
+  }
+
   unsigned long now = millis();
 
   switch (currentAlert) {

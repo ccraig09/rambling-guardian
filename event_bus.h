@@ -20,6 +20,8 @@ enum EventType {
   EVENT_SD_READY,              // SD card status (payload: 1 = ready, 0 = not available)
   EVENT_CAPTURE_STARTED,       // Recording started (capture mode)
   EVENT_CAPTURE_STOPPED,       // Recording stopped (capture mode)
+  EVENT_BUTTON_TRIPLE,         // Triple press detected
+  EVENT_MODALITY_CHANGED,      // Alert modality changed (payload: AlertModality)
   EVENT_COUNT                  // Total number of event types
 };
 
@@ -37,6 +39,13 @@ enum DeviceMode {
   MODE_MONITORING = 0,
   MODE_PRESENTATION = 1,
   MODE_DEEP_SLEEP = 2
+};
+
+// Alert modality (payload for EVENT_MODALITY_CHANGED)
+enum AlertModality {
+  MODALITY_LED_ONLY = 0,
+  MODALITY_VIBRATION_ONLY = 1,
+  MODALITY_BOTH = 2
 };
 
 // Callback signature: receives event type and an int payload
