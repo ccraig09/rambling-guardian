@@ -13,7 +13,7 @@
 #define PIN_MIC_CLK       42    // I2S PDM clock (built-in mic)
 #define PIN_NEOPIXEL      1     // D0 — WS2812B RGB LED data
 #define PIN_BUTTON         2     // D1 — Tactile button (10kΩ pull-up)
-#define PIN_VIBRATION      3     // D2 — Vibration motor (Phase B, unused now)
+#define PIN_VIBRATION      3     // D2 — Vibration motor (via NPN transistor)
 #define PIN_BATTERY        4     // D3/A2 — Battery voltage via voltage divider
 #define PIN_SD_CS         21    // SD card chip select (built-in)
 
@@ -67,6 +67,20 @@ static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 // Capture Mode
 // ============================================
 #define CAPTURE_SILENCE_TIMEOUT_MS  5000   // Auto-stop recording after 5s silence
+
+// ============================================
+// Vibration Motor Settings
+// ============================================
+#define VIBRATION_GENTLE_DUTY     180    // PWM duty for gentle pulse (0-255)
+#define VIBRATION_MODERATE_DUTY   180    // PWM duty for moderate pulses
+#define VIBRATION_URGENT_DUTY     100    // PWM duty for continuous buzz
+#define VIBRATION_CRITICAL_DUTY   255    // PWM duty for critical alert (full)
+#define VIBRATION_GENTLE_MS       200    // Gentle pulse duration
+#define VIBRATION_MODERATE_ON_MS  150    // Moderate pulse on-time
+#define VIBRATION_MODERATE_OFF_MS 100    // Moderate gap between pulses
+#define VIBRATION_MODERATE_CYCLE_MS 3000 // Moderate repeat interval
+#define VIBRATION_CRITICAL_ON_MS  300    // Critical on-time
+#define VIBRATION_CRITICAL_OFF_MS 200    // Critical off-time
 
 // ============================================
 // LED Settings

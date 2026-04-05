@@ -13,6 +13,7 @@
 #include "sd_card.h"
 #include "capture_mode.h"
 #include "session_logger.h"
+#include "vibration_output.h"
 
 void setup() {
   Serial.begin(115200);
@@ -29,6 +30,7 @@ void setup() {
   sdCardInit();
   captureModeInit();
   sessionLoggerInit();
+  vibrationOutputInit();
 
   Serial.println("=== System ready ===");
   Serial.println("Modes: single-press = presentation, long-press = sleep");
@@ -65,6 +67,7 @@ void loop() {
   buttonInputUpdate();
   batteryMonitorUpdate();
   captureModeUpdate();
+  vibrationOutputUpdate();
 
 #ifdef DEBUG_AUDIO
   // Debug: show mic energy every 500ms so you can SEE what the mic hears
