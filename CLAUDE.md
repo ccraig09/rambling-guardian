@@ -35,13 +35,17 @@ Wearable ADHD speech-duration monitor built on XIAO ESP32S3 Sense.
 arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:PSRAM=opi .
 ```
 **NEVER** use `--build-property "build.extra_flags=..."` — it overrides `-DESP32=ESP32` and breaks the build.
-Build size after Phase A.5: 430KB flash (12%), 34KB RAM (10%) — baseline for tracking bloat.
+Build size after Phase B: 441KB flash (13%), 34KB RAM (10%) — baseline for tracking bloat.
 
 ## Architecture
 Modules communicate via event bus only — never call each other directly.
 Audio → VAD → SpeechTimer → EventBus → LED/Vibration/BLE subscribers.
 SD card recording: EVENT_BUTTON_DOUBLE → CaptureMode → WavWriter → SD card. Auto-stops after 5s silence.
 New events (A.5): EVENT_SD_READY, EVENT_CAPTURE_STARTED, EVENT_CAPTURE_STOPPED
+New events (B): EVENT_BUTTON_TRIPLE, EVENT_MODALITY_CHANGED
+Alert modality: triple-press cycles LED only / vibration only / both. Default: both. Resets on boot.
+Vibration motor on GPIO 3 via S8050 NPN transistor. PWM patterns per alert level. SPI pins: expansion board uses GPIO 7/8/9 (not defaults).
+Button is interrupt-driven (GPIO CHANGE mode) — never poll, I2S blocks for ~100ms per loop.
 Utility modules (wav_writer, sd_card) are called directly — they're stateless helpers, not event subscribers.
 audioGetLastSamples() exposes raw I2S samples for recording — shared buffer with VAD energy calculation.
 Debug serial prints are gated by `#define DEBUG_AUDIO` in config.h (commented out by default)
@@ -88,8 +92,9 @@ A React Native companion app is planned (see Design Spec Phase D). When that wor
 
 ## Learning Materials (NotebookLM)
 - Notebook: "Rambling Guardian - Hardware Setup for Visual Learners" (ID: `497bb0ca-4dec-4c34-85e9-1d9e2b3071f3`)
-- **C++ learning materials** — skip per-phase updates, generate as single teaching session at project end
-- **Hardware wiring guides** — DO generate before each phase that adds physical components (button, motor, etc.)
+- **DO NOT generate ANY NotebookLM materials during phase work** — no infographics, no videos, no hardware guides
+- One collective dump at final phase only
+- For hardware wiring: use ASCII diagrams in chat (NotebookLM images get pin counts wrong)
 
 ## Module Patterns
 | Module | Init | Update | Pattern |
@@ -104,6 +109,7 @@ A React Native companion app is planned (see Design Spec Phase D). When that wor
 | wav_writer | N | N | Utility API — open/write/close, called by capture_mode |
 | capture_mode | Y | Y | State machine (IDLE/RECORDING), feeds audio to wav_writer |
 | session_logger | Y | N | Event subscriber, accumulates stats, flush-on-demand to CSV |
+| vibration_output | Y | Y | Event subscriber, PWM patterns per alert level, modality-aware |
 
 ## Non-Negotiables
 - Every task gets a git commit with conventional commit message

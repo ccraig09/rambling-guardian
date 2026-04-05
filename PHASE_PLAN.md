@@ -30,10 +30,10 @@ Living ticket tracker. Check off as completed.
 
 ## Phase B — Haptic Vibration Feedback
 
-- [ ] RG-B.1: Wire vibration motor circuit on breadboard
-- [ ] RG-B.2: Vibration output subscriber module
-- [ ] RG-B.3: User preference for alert modality
-- [ ] Run revise-claude-md and commit
+- [x] RG-B.1: Wire vibration motor circuit on breadboard
+- [x] RG-B.2: Vibration output subscriber module
+- [x] RG-B.3: User preference for alert modality
+- [x] Run revise-claude-md and commit
 
 ---
 
