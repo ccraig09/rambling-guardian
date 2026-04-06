@@ -1,14 +1,385 @@
-import { View, Text } from 'react-native';
+/**
+ * History Screen — Session history list with lifetime stats and per-session
+ * alert timeline. Tap any session card to expand the alert timeline in-place.
+ */
+import { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../src/theme/theme';
+import { getSessions, getAlertEvents, getLifetimeStats } from '../../src/db/sessions';
+import type { Session, AlertEvent } from '../../src/types';
+import { AlertLevel } from '../../src/types';
 
-export default function HistoryScreen() {
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatSessionDate(ms: number): string {
+  const d = new Date(ms);
+  const today = new Date();
+  const isToday = d.toDateString() === today.toDateString();
+  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (isToday) return `Today, ${timeStr}`;
   return (
-    <View style={{ flex: 1, backgroundColor: '#0F172A', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-      <Text style={{ color: '#F1F5F9', fontSize: 20, fontWeight: '600' }}>
-        History
-      </Text>
-      <Text style={{ color: '#64748B', fontSize: 14, marginTop: 8 }}>
-        Session history + analytics (C.7)
+    d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) +
+    `, ${timeStr}`
+  );
+}
+
+function formatDuration(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (min === 0) return `${sec}s`;
+  return `${min}m ${sec}s`;
+}
+
+function formatTotalTime(ms: number): string {
+  const totalMin = Math.floor(ms / 60000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+/** Offset from session start in mm:ss format */
+function formatOffset(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
+const ALERT_LABELS: Record<number, string> = {
+  0: 'Clean',
+  1: 'Gentle',
+  2: 'Moderate',
+  3: 'Urgent',
+  4: 'Critical',
+};
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+type Theme = ReturnType<typeof useTheme>;
+
+function alertBadgeColor(level: AlertLevel, theme: Theme): string {
+  switch (level) {
+    case AlertLevel.GENTLE:   return theme.alert.gentle;
+    case AlertLevel.MODERATE: return theme.alert.moderate;
+    case AlertLevel.URGENT:   return theme.alert.urgent;
+    case AlertLevel.CRITICAL: return theme.alert.urgent;
+    default:                  return theme.alert.safe;
+  }
+}
+
+interface StatPillProps {
+  label: string;
+  value: string;
+  theme: Theme;
+}
+
+function StatPill({ label, value, theme }: StatPillProps) {
+  return (
+    <View style={[styles.statPill, { backgroundColor: theme.colors.elevated, borderRadius: theme.radius.xl }]}>
+      <Text style={[theme.type.heading, { color: theme.text.primary }]}>{value}</Text>
+      <Text style={[theme.type.caption, { color: theme.text.muted, marginTop: 2 }]}>{label}</Text>
+    </View>
+  );
+}
+
+interface AlertBadgeProps {
+  level: AlertLevel;
+  theme: Theme;
+}
+
+function AlertBadge({ level, theme }: AlertBadgeProps) {
+  const color = alertBadgeColor(level, theme);
+  return (
+    <View
+      style={[
+        styles.alertBadge,
+        { backgroundColor: `${color}22`, borderRadius: theme.radius.full },
+      ]}
+    >
+      <Text style={[theme.type.caption, { color, fontFamily: theme.fontFamily.semibold }]}>
+        {ALERT_LABELS[level] ?? 'Unknown'}
       </Text>
     </View>
   );
 }
+
+interface SessionCardProps {
+  session: Session;
+  expanded: boolean;
+  onToggle: () => void;
+  theme: Theme;
+}
+
+function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
+  const [events, setEvents] = useState<AlertEvent[]>([]);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (expanded && !eventsLoaded) {
+      getAlertEvents(session.id)
+        .then((rows) => {
+          setEvents(rows);
+          setEventsLoaded(true);
+        })
+        .catch((e) => {
+          console.warn('[History] Failed to load alert events:', e);
+          setEventsLoaded(true);
+        });
+    }
+  }, [expanded, eventsLoaded, session.id]);
+
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={[styles.sessionCard, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}
+    >
+      {/* ── Card Header ── */}
+      <View style={styles.cardHeader}>
+        <Text style={[theme.type.subtitle, { color: theme.text.primary, flex: 1 }]}>
+          {formatSessionDate(session.startedAt)}
+        </Text>
+        <Text style={[theme.type.caption, { color: expanded ? theme.primary[500] : theme.text.muted }]}>
+          {expanded ? 'Collapse' : 'Details'}
+        </Text>
+      </View>
+
+      {/* ── Card Meta Row ── */}
+      <View style={styles.cardMeta}>
+        <Text style={[theme.type.small, { color: theme.text.secondary }]}>
+          {formatDuration(session.durationMs)}
+        </Text>
+        <Text style={[theme.type.small, { color: theme.text.muted }]}>·</Text>
+        <Text style={[theme.type.small, { color: theme.text.secondary }]}>
+          {session.speechSegments} {session.speechSegments === 1 ? 'segment' : 'segments'}
+        </Text>
+        <Text style={[theme.type.small, { color: theme.text.muted }]}>·</Text>
+        <AlertBadge level={session.maxAlert} theme={theme} />
+      </View>
+
+      {/* ── Expanded: Alert Timeline ── */}
+      {expanded && (
+        <View style={[styles.timeline, { borderTopColor: theme.colors.elevated }]}>
+          <Text style={[theme.type.small, { color: theme.text.tertiary, marginBottom: theme.spacing.sm, fontFamily: theme.fontFamily.semibold }]}>
+            Alert Timeline
+          </Text>
+          {!eventsLoaded ? (
+            <ActivityIndicator size="small" color={theme.primary[500]} />
+          ) : events.length === 0 ? (
+            <Text style={[theme.type.small, { color: theme.text.muted }]}>
+              No alerts — clean session.
+            </Text>
+          ) : (
+            events.map((event) => (
+              <View key={event.id} style={styles.timelineRow}>
+                <Text style={[theme.type.caption, { color: theme.text.muted, width: 44 }]}>
+                  {formatOffset(event.timestamp)}
+                </Text>
+                <View style={[styles.timelineDot, { backgroundColor: alertBadgeColor(event.alertLevel, theme) }]} />
+                <Text style={[theme.type.small, { color: theme.text.secondary, flex: 1 }]}>
+                  {ALERT_LABELS[event.alertLevel]} alert — {formatDuration(event.durationAtAlert)} of speech
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Screen
+// ---------------------------------------------------------------------------
+
+export default function HistoryScreen() {
+  const theme = useTheme();
+
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [lifetimeStats, setLifetimeStats] = useState({
+    totalSessions: 0,
+    totalSpeechMs: 0,
+    totalAlerts: 0,
+    avgAlertsPer: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [sessionRows, stats] = await Promise.all([
+        getSessions(50),
+        getLifetimeStats(),
+      ]);
+      setSessions(sessionRows);
+      setLifetimeStats(stats);
+    } catch (e) {
+      console.warn('[History] Failed to load data:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  function handleToggle(id: string) {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }
+
+  return (
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.colors.bg }]}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Screen Title ── */}
+        <Text style={[theme.type.title, { color: theme.text.primary, marginBottom: theme.spacing.lg }]}>
+          History
+        </Text>
+
+        {/* ── Lifetime Stats Card ── */}
+        <View style={[styles.lifetimeCard, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}>
+          <Text style={[theme.type.subtitle, { color: theme.text.primary, marginBottom: theme.spacing.md }]}>
+            All Time
+          </Text>
+          <View style={styles.statPillRow}>
+            <StatPill
+              label="Sessions"
+              value={String(lifetimeStats.totalSessions)}
+              theme={theme}
+            />
+            <StatPill
+              label="Talk time"
+              value={lifetimeStats.totalSpeechMs > 0 ? formatTotalTime(lifetimeStats.totalSpeechMs) : '—'}
+              theme={theme}
+            />
+            <StatPill
+              label="Alerts avg"
+              value={lifetimeStats.totalSessions > 0 ? String(lifetimeStats.avgAlertsPer) : '—'}
+              theme={theme}
+            />
+          </View>
+        </View>
+
+        {/* ── Section Heading ── */}
+        <Text style={[theme.type.subtitle, { color: theme.text.primary, marginTop: theme.spacing.lg, marginBottom: theme.spacing.md }]}>
+          Recent Sessions
+        </Text>
+
+        {/* ── Session List ── */}
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={theme.primary[500]} />
+          </View>
+        ) : sessions.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}>
+            <Text style={[theme.type.subtitle, { color: theme.text.secondary, marginBottom: theme.spacing.sm }]}>
+              No sessions yet
+            </Text>
+            <Text style={[theme.type.body, { color: theme.text.muted, textAlign: 'center' }]}>
+              Connect your RamblingGuard device and start talking to record a session.
+            </Text>
+          </View>
+        ) : (
+          sessions.map((session) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              expanded={expandedId === session.id}
+              onToggle={() => handleToggle(session.id)}
+              theme={theme}
+            />
+          ))
+        )}
+
+        {/* Bottom padding */}
+        <View style={{ height: 32 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  scroll: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  lifetimeCard: {
+    padding: 16,
+  },
+  statPillRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statPill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  sessionCard: {
+    padding: 16,
+    marginBottom: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  alertBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  timeline: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 5,
+  },
+  timelineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  center: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyCard: {
+    padding: 24,
+    alignItems: 'center',
+  },
+});
