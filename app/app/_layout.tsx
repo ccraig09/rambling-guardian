@@ -4,6 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator, Pressable } from 'react-native';
 import { useFonts } from 'expo-font';
 import { getDatabase } from '../src/db/database';
+import { seedExercises } from '../src/db/exercises';
+import { exerciseData } from '../src/data/exercises';
 import { fonts } from '../src/theme/typography';
 import { useTheme } from '../src/theme/theme';
 
@@ -16,6 +18,7 @@ export default function RootLayout() {
   const initDb = () => {
     setDbError(false);
     getDatabase()
+      .then(() => seedExercises(exerciseData))
       .then(() => setDbReady(true))
       .catch((err) => {
         console.error('[DB] Init failed:', err);
