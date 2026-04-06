@@ -100,3 +100,18 @@ Living ticket tracker. Check off as completed.
 - [ ] RG-F.5: OTA firmware updates via BLE
 - [ ] RG-F.6: App Store submission (TestFlight)
 - [ ] Run revise-claude-md and commit
+
+---
+
+## Post-Launch — Follow-up Tasks
+
+Deferred improvements to revisit after all phases ship.
+
+- [ ] Dedicated Favorites screen — currently favorites are an inline section in the exercises scroll, easy to miss; needs its own tab or prominent entry point
+- [ ] Exercise search/filter — search by name, filter by duration, difficulty
+- [ ] Onboarding walkthrough — first-launch guided tour explaining device vs exercises vs voice enrollment
+- [ ] Apple Watch deep integration (deferred C.9) — complication, haptics relay, glanceable speech timer
+- [ ] Session modes auto-detection (deferred C.5) — requires Phase D speaker diarization to detect solo vs group automatically
+- [ ] Dark/light mode toggle in settings — currently follows system; no in-app override UI
+- [ ] Exercise progress tracking — per-exercise history, improvement trends over time
+- [ ] Export/share session data — PDF or CSV export for therapist review
