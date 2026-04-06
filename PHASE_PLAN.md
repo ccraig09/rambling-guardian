@@ -61,7 +61,7 @@ Living ticket tracker. Check off as completed.
 - [x] RG-C.7: Session history + analytics
 - [x] RG-C.8: Settings + threshold configuration
 - [ ] ~~RG-C.9~~ → Deferred (iOS notifications auto-forward to Watch; deep WatchKit integration later)
-- [ ] UI polish pass
+- [x] UI polish pass
 - [ ] Run revise-claude-md and commit
 
 ---
