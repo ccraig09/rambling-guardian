@@ -30,7 +30,7 @@ export async function deleteVoiceSample(id: number): Promise<void> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<{ file_path: string }>('SELECT file_path FROM voice_samples WHERE id = ?', [id]);
   if (row) {
-    const FileSystem = require('expo-file-system');
+    const FileSystem = require('expo-file-system/legacy');
     await FileSystem.deleteAsync(row.file_path, { idempotent: true });
   }
   await db.runAsync('DELETE FROM voice_samples WHERE id = ?', [id]);
