@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, Animated, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { getStreaksForMonth, getCurrentStreak } from '../db/exercises';
 import type { Streak } from '../types';
@@ -43,6 +43,10 @@ function buildGrid(year: number, month: number): DayCell[] {
   return cells;
 }
 
+// Skeleton rows/cols for loading state
+const SKELETON_ROWS = 5;
+const SKELETON_COLS = 7;
+
 export function StreakCalendar() {
   const theme = useTheme();
   const today = todayISO();
@@ -52,8 +56,33 @@ export function StreakCalendar() {
   const [month, setMonth] = useState(now.getMonth()); // 0-indexed
   const [streaks, setStreaks] = useState<Streak[]>([]);
   const [currentStreak, setCurrentStreak] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Skeleton pulse animation
+  const pulseAnim = useRef(new Animated.Value(0.5)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.5,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
 
   const loadData = useCallback(async () => {
+    setIsLoading(true);
     const ym = toYearMonth(year, month);
     const [monthStreaks, streak] = await Promise.all([
       getStreaksForMonth(ym),
@@ -61,13 +90,23 @@ export function StreakCalendar() {
     ]);
     setStreaks(monthStreaks);
     setCurrentStreak(streak);
+    setIsLoading(false);
   }, [year, month]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  // Month navigation capping
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+  const isMinMonth = (() => {
+    const minDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    return year === minDate.getFullYear() && month === minDate.getMonth();
+  })();
+
   function goToPrevMonth() {
+    if (isMinMonth) return;
+    setSelectedDate(null);
     if (month === 0) {
       setYear((y) => y - 1);
       setMonth(11);
@@ -77,6 +116,8 @@ export function StreakCalendar() {
   }
 
   function goToNextMonth() {
+    if (isCurrentMonth) return;
+    setSelectedDate(null);
     if (month === 11) {
       setYear((y) => y + 1);
       setMonth(0);
@@ -103,16 +144,45 @@ export function StreakCalendar() {
     const isToday = cell.dateISO === today;
 
     if (streak && streak.exercisesDone > 0 && streak.sessionsDone > 0) {
-      return { bgColor: theme.primary[500], borderColor: null };
+      return {
+        bgColor: theme.primary[500],
+        borderColor: isToday ? theme.text.primary : null,
+      };
     }
     if (streak && streak.exercisesDone > 0) {
-      return { bgColor: theme.primary[200], borderColor: null };
+      return {
+        bgColor: theme.primary[200],
+        borderColor: isToday ? theme.text.primary : null,
+      };
     }
     if (isToday) {
       return { bgColor: 'transparent', borderColor: theme.primary[500] };
     }
     return { bgColor: theme.colors.elevated, borderColor: null };
   }
+
+  function handleCellPress(dateISO: string | null) {
+    if (!dateISO) return;
+    setSelectedDate((prev) => (prev === dateISO ? null : dateISO));
+  }
+
+  // Selected date info for tooltip
+  function getSelectedInfo(): string | null {
+    if (!selectedDate) return null;
+    const streak = streakMap.get(selectedDate);
+    if (!streak) return 'No activity';
+    const parts: string[] = [];
+    if (streak.exercisesDone > 0) {
+      parts.push(`${streak.exercisesDone} exercise${streak.exercisesDone === 1 ? '' : 's'} done`);
+    }
+    if (streak.sessionsDone > 0) {
+      parts.push(`${streak.sessionsDone} session${streak.sessionsDone === 1 ? '' : 's'}`);
+    }
+    return parts.length > 0 ? parts.join(' · ') : 'No activity';
+  }
+
+  // Empty state: non-current month with zero streak entries
+  const showEmptyState = !isLoading && !isCurrentMonth && streaks.length === 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}>
@@ -122,7 +192,9 @@ export function StreakCalendar() {
           {currentStreak}
         </Text>
         <Text style={[theme.type.small, { color: theme.text.brand, marginLeft: 8 }]}>
-          {currentStreak === 1 ? 'day streak' : 'day streak'}{currentStreak > 0 ? '  Keep it up!' : '  Start today!'}
+          {currentStreak > 0
+            ? `day streak · Keep it up!`
+            : 'Start your streak today!'}
         </Text>
       </View>
 
@@ -131,10 +203,13 @@ export function StreakCalendar() {
         <Pressable
           onPress={goToPrevMonth}
           hitSlop={12}
-          style={styles.navButton}
+          style={[styles.navButton, isMinMonth && styles.navButtonDisabled]}
           accessibilityLabel="Previous month"
+          disabled={isMinMonth}
         >
-          <Text style={[theme.type.subtitle, { color: theme.text.secondary }]}>{'<'}</Text>
+          <Text style={[theme.type.subtitle, { color: isMinMonth ? theme.text.muted : theme.text.secondary }]}>
+            {'<'}
+          </Text>
         </Pressable>
 
         <Text style={[theme.type.subtitle, { color: theme.text.primary }]}>
@@ -144,10 +219,13 @@ export function StreakCalendar() {
         <Pressable
           onPress={goToNextMonth}
           hitSlop={12}
-          style={styles.navButton}
+          style={[styles.navButton, isCurrentMonth && styles.navButtonDisabled]}
           accessibilityLabel="Next month"
+          disabled={isCurrentMonth}
         >
-          <Text style={[theme.type.subtitle, { color: theme.text.secondary }]}>{'>'}</Text>
+          <Text style={[theme.type.subtitle, { color: isCurrentMonth ? theme.text.muted : theme.text.secondary }]}>
+            {'>'}
+          </Text>
         </Pressable>
       </View>
 
@@ -163,32 +241,78 @@ export function StreakCalendar() {
         ))}
       </View>
 
-      {/* Grid */}
-      <View style={styles.grid}>
-        {grid.map((cell, i) => {
-          const { bgColor, borderColor } = getCellStyle(cell);
-          return (
-            <View
-              key={i}
+      {/* Grid — loading skeleton or real cells */}
+      {isLoading ? (
+        <View style={styles.grid}>
+          {Array.from({ length: SKELETON_ROWS * SKELETON_COLS }).map((_, i) => (
+            <Animated.View
+              key={`skel-${i}`}
               style={[
                 styles.cell,
                 {
-                  backgroundColor: bgColor,
+                  backgroundColor: theme.colors.elevated,
                   borderRadius: theme.radius.sm,
-                  borderWidth: borderColor ? 1.5 : 0,
-                  borderColor: borderColor ?? 'transparent',
+                  opacity: pulseAnim,
                 },
               ]}
-            >
-              {cell.day !== null && (
-                <Text style={[theme.type.caption, { color: theme.text.muted }]}>
-                  {cell.day}
-                </Text>
-              )}
-            </View>
-          );
-        })}
-      </View>
+            />
+          ))}
+        </View>
+      ) : (
+        <View style={styles.grid}>
+          {grid.map((cell, i) => {
+            const { bgColor, borderColor } = getCellStyle(cell);
+            const isSelected = cell.dateISO != null && cell.dateISO === selectedDate;
+            return (
+              <Pressable
+                key={i}
+                onPress={() => handleCellPress(cell.dateISO)}
+                disabled={cell.day === null}
+                style={[
+                  styles.cell,
+                  {
+                    backgroundColor: bgColor,
+                    borderRadius: theme.radius.sm,
+                    borderWidth: borderColor ? 1.5 : 0,
+                    borderColor: borderColor ?? 'transparent',
+                  },
+                  isSelected && {
+                    borderWidth: 2,
+                    borderColor: theme.text.primary,
+                  },
+                ]}
+                accessibilityLabel={
+                  cell.dateISO
+                    ? `${MONTH_NAMES[month]} ${cell.day}`
+                    : undefined
+                }
+              >
+                {cell.day !== null && (
+                  <Text style={[theme.type.caption, { color: theme.text.muted }]}>
+                    {cell.day}
+                  </Text>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Selected date tooltip */}
+      {selectedDate && !isLoading && (
+        <View style={[styles.tooltip, { backgroundColor: theme.colors.elevated, borderRadius: theme.radius.md }]}>
+          <Text style={[theme.type.caption, { color: theme.text.secondary }]}>
+            {getSelectedInfo()}
+          </Text>
+        </View>
+      )}
+
+      {/* Empty state */}
+      {showEmptyState && (
+        <Text style={[theme.type.small, { color: theme.text.muted, textAlign: 'center' }]}>
+          No activity in {MONTH_NAMES[month]}
+        </Text>
+      )}
 
       {/* Legend */}
       <View style={styles.legendRow}>
@@ -202,7 +326,21 @@ export function StreakCalendar() {
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendSquare, { backgroundColor: theme.primary[500], borderRadius: theme.radius.sm }]} />
-          <Text style={[theme.type.caption, { color: theme.text.muted }]}>Full day</Text>
+          <Text style={[theme.type.caption, { color: theme.text.muted }]}>Exercises + Session</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View
+            style={[
+              styles.legendSquare,
+              {
+                backgroundColor: 'transparent',
+                borderRadius: theme.radius.sm,
+                borderWidth: 1.5,
+                borderColor: theme.primary[500],
+              },
+            ]}
+          />
+          <Text style={[theme.type.caption, { color: theme.text.muted }]}>Today</Text>
         </View>
       </View>
     </View>
@@ -229,6 +367,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  navButtonDisabled: {
+    opacity: 0.4,
+  },
   dayLabelRow: {
     flexDirection: 'row',
     gap: 4,
@@ -243,6 +384,11 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  tooltip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignSelf: 'center',
   },
   legendRow: {
     flexDirection: 'row',
