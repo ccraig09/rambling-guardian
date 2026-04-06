@@ -1,27 +1,35 @@
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
-import { colors } from '../../src/theme/colors';
+import { useTheme } from '../../src/theme/theme';
 
-// Placeholder tab icon — will be replaced with proper icons in the design phase (C.3.5)
+// Placeholder tab icon — will be replaced with proper icons in UI tickets
 function TabIcon({ label, focused }: { label: string; focused: boolean }) {
+  const theme = useTheme();
   return (
-    <Text style={{ fontSize: 20, color: focused ? colors.accent : colors.textMuted }}>
+    <Text style={{ fontSize: 20, color: focused ? theme.primary[500] : theme.text.muted }}>
       {label}
     </Text>
   );
 }
 
 export default function TabLayout() {
+  const theme = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
+          backgroundColor: theme.colors.surface,
+          borderTopColor: 'transparent',
+          borderTopWidth: 0,
         },
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: theme.primary[500],
+        tabBarInactiveTintColor: theme.text.muted,
+        tabBarLabelStyle: {
+          fontFamily: theme.fontFamily.medium,
+          fontSize: 11,
+        },
       }}
     >
       <Tabs.Screen

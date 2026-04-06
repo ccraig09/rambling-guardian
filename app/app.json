@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F172A"
+      "backgroundColor": "#161220"
     },
     "ios": {
       "supportsTablet": false,
@@ -46,10 +46,13 @@
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": true,
-          "modes": ["central"],
+          "modes": [
+            "central"
+          ],
           "bluetoothAlwaysPermission": "Rambling Guardian uses Bluetooth to connect to your speech monitoring device."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

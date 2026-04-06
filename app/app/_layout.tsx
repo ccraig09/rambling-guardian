@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator, Pressable } from 'react-native';
+import { useFonts } from 'expo-font';
 import { getDatabase } from '../src/db/database';
+import { fonts } from '../src/theme/typography';
+import { useTheme } from '../src/theme/theme';
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(false);
+  const [fontsLoaded] = useFonts(fonts);
+  const theme = useTheme();
 
   const initDb = () => {
     setDbError(false);
@@ -24,35 +29,35 @@ export default function RootLayout() {
 
   if (dbError) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A', padding: 24 }}>
-        <Text style={{ color: '#F87171', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg, padding: theme.spacing.lg }}>
+        <Text style={[theme.type.subtitle, { color: theme.semantic.error, marginBottom: theme.spacing.sm }]}>
           Database Error
         </Text>
-        <Text style={{ color: '#94A3B8', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>
+        <Text style={[theme.type.small, { color: theme.text.secondary, textAlign: 'center', marginBottom: theme.spacing.lg }]}>
           Failed to initialize the database. Try again or restart the app.
         </Text>
         <Pressable
           onPress={initDb}
-          style={{ backgroundColor: '#1E40AF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+          style={{ backgroundColor: theme.primary[500], paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, borderRadius: theme.radius.md }}
         >
-          <Text style={{ color: '#F1F5F9', fontSize: 14, fontWeight: '600' }}>Retry</Text>
+          <Text style={[theme.type.subtitle, { color: theme.text.onColor }]}>Retry</Text>
         </Pressable>
       </View>
     );
   }
 
-  if (!dbReady) {
+  if (!dbReady || !fontsLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
-        <ActivityIndicator size="large" color="#60A5FA" />
-        <Text style={{ color: '#94A3B8', marginTop: 12, fontSize: 14 }}>Loading...</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg }}>
+        <ActivityIndicator size="large" color={theme.primary[500]} />
+        <Text style={[theme.type.small, { color: theme.text.secondary, marginTop: theme.spacing.md }]}>Loading...</Text>
       </View>
     );
   }
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={theme.dark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ presentation: 'modal' }} />
