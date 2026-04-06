@@ -14,6 +14,7 @@
 #include "capture_mode.h"
 #include "session_logger.h"
 #include "vibration_output.h"
+#include "ble_output.h"
 
 void setup() {
   Serial.begin(115200);
@@ -21,6 +22,7 @@ void setup() {
   Serial.println("Rambling Guardian booting...");
 
   eventBusInit();
+  bleOutputInit();          // BLE first — BT controller needs internal DMA SRAM before I2S claims it
   audioInputInit();
   speechTimerInit();
   ledOutputInit();
@@ -68,6 +70,7 @@ void loop() {
   batteryMonitorUpdate();
   captureModeUpdate();
   vibrationOutputUpdate();
+  bleOutputUpdate();
 
 #ifdef DEBUG_AUDIO
   // Debug: show mic energy every 500ms so you can SEE what the mic hears

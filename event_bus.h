@@ -22,6 +22,9 @@ enum EventType {
   EVENT_CAPTURE_STOPPED,       // Recording stopped (capture mode)
   EVENT_BUTTON_TRIPLE,         // Triple press detected
   EVENT_MODALITY_CHANGED,      // Alert modality changed (payload: AlertModality)
+  EVENT_BLE_CONNECTED,         // BLE client connected
+  EVENT_BLE_DISCONNECTED,      // BLE client disconnected
+  EVENT_THRESHOLDS_CHANGED,    // Alert thresholds updated via BLE
   EVENT_COUNT                  // Total number of event types
 };
 

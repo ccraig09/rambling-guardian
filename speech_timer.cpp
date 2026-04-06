@@ -9,12 +9,18 @@ static bool timerRunning = false;
 static AlertLevel currentLevel = ALERT_NONE;
 static bool alertsSuppressed = false;
 
+// Runtime-configurable thresholds (defaults from config.h, writable via BLE)
+static unsigned long thresholdGentle   = ALERT_GENTLE_MS;
+static unsigned long thresholdModerate = ALERT_MODERATE_MS;
+static unsigned long thresholdUrgent   = ALERT_URGENT_MS;
+static unsigned long thresholdCritical = ALERT_CRITICAL_MS;
+
 // Calculate alert level from duration
 static AlertLevel levelFromDuration(unsigned long duration) {
-  if (duration >= ALERT_CRITICAL_MS) return ALERT_CRITICAL;
-  if (duration >= ALERT_URGENT_MS)   return ALERT_URGENT;
-  if (duration >= ALERT_MODERATE_MS) return ALERT_MODERATE;
-  if (duration >= ALERT_GENTLE_MS)   return ALERT_GENTLE;
+  if (duration >= thresholdCritical) return ALERT_CRITICAL;
+  if (duration >= thresholdUrgent)   return ALERT_URGENT;
+  if (duration >= thresholdModerate) return ALERT_MODERATE;
+  if (duration >= thresholdGentle)   return ALERT_GENTLE;
   return ALERT_NONE;
 }
 
@@ -31,6 +37,16 @@ static void onSpeechEvent(EventType event, int payload) {
     isSpeaking = false;
     lastSpeechTime = millis();
   }
+}
+
+static void onThresholdsChanged(EventType event, int payload) {
+  // BLE module stores thresholds in seconds — we need milliseconds
+  // The BLE module publishes this event after updating its own threshold array.
+  // We read the new values from the BLE characteristic via a shared approach:
+  // The payload is unused; the ble_output module calls speechTimerSetThresholds() directly.
+  // (This event just signals that thresholds changed, for logging purposes.)
+  Serial.printf("[SpeechTimer] Thresholds updated: %lu/%lu/%lu/%lums\n",
+                thresholdGentle, thresholdModerate, thresholdUrgent, thresholdCritical);
 }
 
 static void onModeChanged(EventType event, int payload) {
@@ -51,6 +67,7 @@ void speechTimerInit() {
   eventBusSubscribe(EVENT_SPEECH_STARTED, onSpeechEvent);
   eventBusSubscribe(EVENT_SPEECH_ENDED, onSpeechEvent);
   eventBusSubscribe(EVENT_MODE_CHANGED, onModeChanged);
+  eventBusSubscribe(EVENT_THRESHOLDS_CHANGED, onThresholdsChanged);
   Serial.println("[SpeechTimer] Initialized");
 }
 
@@ -95,4 +112,12 @@ unsigned long speechTimerGetDuration() {
 
 AlertLevel speechTimerGetLevel() {
   return currentLevel;
+}
+
+void speechTimerSetThresholds(unsigned long gentle, unsigned long moderate,
+                               unsigned long urgent, unsigned long critical) {
+  thresholdGentle   = gentle;
+  thresholdModerate = moderate;
+  thresholdUrgent   = urgent;
+  thresholdCritical = critical;
 }
