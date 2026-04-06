@@ -40,17 +40,23 @@ Living ticket tracker. Check off as completed.
 ## Phase C — BLE Companion App + Voice Trainer
 
 ### Firmware
-- [ ] RG-C.1: NimBLE GATT peripheral setup
-- [ ] RG-C.2: BLE + WiFi connectivity with fallback sync
+- [x] RG-C.1: NimBLE GATT peripheral setup
+- [ ] RG-C.2: BLE connection management (WiFi deferred to Phase D)
+
+### Design
+- [ ] RG-C.3.5: Design system + Figma feature designs (DESIGN.md, tokens, primitives)
 
 ### App
-- [ ] RG-C.3: React Native Expo project scaffold
+- [x] RG-C.3: React Native Expo project scaffold
 - [ ] RG-C.4: Voice trainer onboarding
+- [ ] RG-C.4.5: Offline exercise library (55 exercises, streaks, daily rotation)
 - [ ] RG-C.5: Session modes (solo / with others)
+- [ ] RG-C.10: Notification system (alerts, summaries, coaching, streaks)
 - [ ] RG-C.6: BLE connection + real-time dashboard
 - [ ] RG-C.7: Session history + analytics
 - [ ] RG-C.8: Settings + threshold configuration
 - [ ] RG-C.9: Apple Watch forwarding
+- [ ] UI polish pass
 - [ ] Run revise-claude-md and commit
 
 ---
