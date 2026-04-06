@@ -48,7 +48,7 @@ Living ticket tracker. Check off as completed.
 
 ### App
 - [x] RG-C.3: React Native Expo project scaffold
-- [ ] RG-C.4: Voice trainer onboarding
+- [x] RG-C.4: Voice trainer onboarding
 - [ ] RG-C.4.5: Offline exercise library (55 exercises, streaks, daily rotation)
 - [ ] RG-C.5: Session modes (solo / with others)
 - [ ] RG-C.10: Notification system (alerts, summaries, coaching, streaks)
