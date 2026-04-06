@@ -54,6 +54,7 @@ Living ticket tracker. Check off as completed.
 - [x] RG-C.4.7: Exercise library navigation — category tabs, unlock badges, difficulty legend
 - [x] RG-C.4.8: Recording quality — real audio metering, playback, min duration, re-record
 - [x] RG-C.4.9: Streak calendar polish — plural fix, legend clarity, tappable cells, loading skeleton
+- [ ] RG-C.4.10: Favorites & highly-rated exercises — bookmark/favorite exercises, auto-collect 4-5 star rated, dedicated Favorites section in library for quick access
 - [ ] RG-C.5: Session modes (solo / with others) — needs UX explanation: solo = practice, meeting = monitor
 - [ ] RG-C.10: Notification system (alerts, summaries, coaching, streaks, exercise reminders)
 - [ ] RG-C.6: BLE connection + real-time dashboard
