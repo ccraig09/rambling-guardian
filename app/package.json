@@ -59,7 +59,11 @@
             {}
           ]
         },
-        "testEnvironment": "node"
+        "testEnvironment": "node",
+        "moduleNameMapper": {
+          "^react-native$": "<rootDir>/src/__mocks__/react-native.ts",
+          "^@expo-google-fonts/(.*)$": "<rootDir>/src/__mocks__/expo-google-fonts.ts"
+        }
       }
     ]
   },
