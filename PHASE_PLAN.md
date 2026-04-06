@@ -50,8 +50,12 @@ Living ticket tracker. Check off as completed.
 - [x] RG-C.3: React Native Expo project scaffold
 - [x] RG-C.4: Voice trainer onboarding
 - [x] RG-C.4.5: Offline exercise library (55 exercises, streaks, daily rotation)
-- [ ] RG-C.5: Session modes (solo / with others)
-- [ ] RG-C.10: Notification system (alerts, summaries, coaching, streaks)
+- [x] RG-C.4.6: Exercise controls — pause/resume, stop, preview, completion celebration
+- [x] RG-C.4.7: Exercise library navigation — category tabs, unlock badges, difficulty legend
+- [x] RG-C.4.8: Recording quality — real audio metering, playback, min duration, re-record
+- [x] RG-C.4.9: Streak calendar polish — plural fix, legend clarity, tappable cells, loading skeleton
+- [ ] RG-C.5: Session modes (solo / with others) — needs UX explanation: solo = practice, meeting = monitor
+- [ ] RG-C.10: Notification system (alerts, summaries, coaching, streaks, exercise reminders)
 - [ ] RG-C.6: BLE connection + real-time dashboard
 - [ ] RG-C.7: Session history + analytics
 - [ ] RG-C.8: Settings + threshold configuration
