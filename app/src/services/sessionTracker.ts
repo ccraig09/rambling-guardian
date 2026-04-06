@@ -8,6 +8,11 @@ import { useDeviceStore } from '../stores/deviceStore';
 import { bleService } from './bleManager';
 import { createSession, finalizeSession, recordAlertEvent } from '../db/sessions';
 import { AlertLevel } from '../types';
+import { useSettingsStore } from '../stores/settingsStore';
+import {
+  sendSessionSummaryNotification,
+  checkAndSendStreakNotification,
+} from './notifications';
 
 class SessionTracker {
   private sessionId: string | null = null;
@@ -55,6 +60,16 @@ class SessionTracker {
               this._maxAlert,
               this._speechSegments,
             );
+            // Fire session summary + streak check if notifications are on
+            const { notificationsEnabled } = useSettingsStore.getState();
+            if (notificationsEnabled) {
+              await sendSessionSummaryNotification(durationMs, this._alertCount).catch(
+                (e) => console.warn('[SessionTracker] Summary notification failed:', e),
+              );
+              await checkAndSendStreakNotification().catch(
+                (e) => console.warn('[SessionTracker] Streak notification failed:', e),
+              );
+            }
           } catch (e) {
             console.warn('[SessionTracker] Failed to finalize session:', e);
           }
