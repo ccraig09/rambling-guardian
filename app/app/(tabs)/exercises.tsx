@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/theme';
-import { ExerciseCard } from '../../src/components/ExerciseCard';
+import { ExerciseCard, getCategoryColor } from '../../src/components/ExerciseCard';
 import { StreakCalendar } from '../../src/components/StreakCalendar';
 import { getDailyExercises, getUnlockedDifficulty } from '../../src/services/exerciseEngine';
 import { getExercises, completeExercise, getCategoryCompletions } from '../../src/db/exercises';
@@ -150,9 +150,22 @@ export default function ExercisesScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Today's Practice ── */}
-        <Text style={[theme.type.title, { color: theme.text.primary, marginBottom: 16 }]}>
+        <Text style={[theme.type.title, { color: theme.text.primary, marginBottom: 8 }]}>
           Today&apos;s Practice
         </Text>
+        <Text style={[theme.type.small, { color: theme.text.secondary, marginBottom: 12 }]}>
+          3 exercises picked fresh for you — one from each category.
+        </Text>
+        <View style={styles.categoryLegend}>
+          {ALL_CATEGORIES.map((cat) => (
+            <View key={cat} style={styles.legendChip}>
+              <View style={[styles.catDot, { backgroundColor: getCategoryColor(cat, theme) }]} />
+              <Text style={[theme.type.caption, { color: theme.text.muted }]}>
+                {CATEGORY_LABELS[cat]}
+              </Text>
+            </View>
+          ))}
+        </View>
 
         {dailyLoading ? (
           <ActivityIndicator color={theme.primary[500]} style={styles.loader} />
@@ -369,6 +382,23 @@ const styles = StyleSheet.create({
   },
   legendDot: {
     fontSize: 10,
+  },
+  // ── Category color legend ──
+  categoryLegend: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+    marginBottom: 16,
+  },
+  legendChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  catDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   // ── Locked exercises ──
   lockedWrapper: {

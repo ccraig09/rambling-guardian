@@ -19,7 +19,7 @@ const DIFFICULTY_LABELS: Record<number, string> = {
   3: 'Advanced',
 };
 
-function getCategoryColor(category: ExerciseCategory, theme: ReturnType<typeof useTheme>): string {
+export function getCategoryColor(category: ExerciseCategory, theme: ReturnType<typeof useTheme>): string {
   switch (category) {
     case 'warmup':       return theme.alert.gentle;
     case 'breathing':    return theme.alert.safe;
@@ -33,8 +33,8 @@ function CategoryBadge({ category }: { category: ExerciseCategory }) {
   const color = getCategoryColor(category, theme);
   return (
     <View style={[styles.badge, { backgroundColor: `${color}26` }]}>
-      <Text style={[theme.type.caption, { color, fontFamily: theme.fontFamily.semibold, textTransform: 'capitalize' }]}>
-        {category}
+      <Text style={[theme.type.small, { color, fontFamily: theme.fontFamily.semibold, textTransform: 'capitalize' }]}>
+        {category === 'warmup' ? 'Warm-Up' : category}
       </Text>
     </View>
   );
