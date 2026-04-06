@@ -42,7 +42,7 @@ static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 // ============================================
 // Speech Timer Thresholds (milliseconds)
 // ============================================
-#define PAUSE_THRESHOLD_MS    4000    // 4s silence = timer reset
+#define PAUSE_THRESHOLD_MS    3000    // 3s silence = timer reset
 #define ALERT_GENTLE_MS       7000    // 7 seconds — yellow (2-3 sentences, awareness nudge)
 #define ALERT_MODERATE_MS    15000    // 15 seconds — orange (monologue territory)
 #define ALERT_URGENT_MS      30000    // 30 seconds — red (wrap it up)
