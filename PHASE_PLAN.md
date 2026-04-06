@@ -56,7 +56,7 @@ Living ticket tracker. Check off as completed.
 - [x] RG-C.4.9: Streak calendar polish — plural fix, legend clarity, tappable cells, loading skeleton
 - [ ] RG-C.4.10: Favorites & highly-rated exercises — bookmark/favorite exercises, auto-collect 4-5 star rated, dedicated Favorites section in library for quick access
 - [ ] ~~RG-C.5~~ → Deferred to Phase D (needs calendar integration + speaker diarization to be useful; manual mode switching is ADHD-hostile)
-- [ ] RG-C.10: Notification system (alerts, summaries, coaching, streaks, exercise reminders)
+- [x] RG-C.10: Notification system (alerts, summaries, coaching, streaks, exercise reminders)
 - [x] RG-C.6: BLE connection + real-time dashboard
 - [x] RG-C.7: Session history + analytics
 - [x] RG-C.8: Settings + threshold configuration
