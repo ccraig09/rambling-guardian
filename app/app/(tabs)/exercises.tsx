@@ -1,12 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/theme';
 import { ExerciseCard } from '../../src/components/ExerciseCard';
 import { StreakCalendar } from '../../src/components/StreakCalendar';
-import { getDailyExercises } from '../../src/services/exerciseEngine';
-import { getExercises, completeExercise } from '../../src/db/exercises';
+import { getDailyExercises, getUnlockedDifficulty } from '../../src/services/exerciseEngine';
+import { getExercises, completeExercise, getCategoryCompletions } from '../../src/db/exercises';
 import type { Exercise, ExerciseCategory } from '../../src/types';
+
+// ─── Constants ──────────────────────────────────────────────────────────────
 
 const ALL_CATEGORIES: ExerciseCategory[] = ['warmup', 'breathing', 'articulation', 'speech'];
 
@@ -17,12 +26,55 @@ const CATEGORY_LABELS: Record<ExerciseCategory, string> = {
   speech: 'Speech',
 };
 
+const CATEGORY_DESCRIPTIONS: Record<ExerciseCategory, string> = {
+  warmup: 'Loosen your jaw, lips, and vocal cords before speaking.',
+  breathing: 'Calm your nervous system and control your pace.',
+  articulation: 'Sharpen consonants and vowels for crystal-clear speech.',
+  speech: 'Practice real-world speaking patterns \u2014 pacing, pausing, storytelling.',
+};
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
 export default function ExercisesScreen() {
   const theme = useTheme();
+  const libraryRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Daily exercises
   const [dailyExercises, setDailyExercises] = useState<Exercise[]>([]);
-  const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [dailyLoading, setDailyLoading] = useState(true);
+
+  // Library
+  const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
+
+  // Tabbed navigation
+  const [selectedCategory, setSelectedCategory] = useState<ExerciseCategory>('warmup');
+  const [unlockedDifficulties, setUnlockedDifficulties] = useState<Record<ExerciseCategory, number>>({
+    warmup: 1, breathing: 1, articulation: 1, speech: 1,
+  });
+  const [categoryCompletions, setCategoryCompletions] = useState<Record<ExerciseCategory, number>>({
+    warmup: 0, breathing: 0, articulation: 0, speech: 0,
+  });
+
+  // ─── Data loaders ───────────────────────────────────────────────────────────
+
+  const loadUnlockData = useCallback(async () => {
+    const [difficulties, completions] = await Promise.all([
+      Promise.all(ALL_CATEGORIES.map((c) => getUnlockedDifficulty(c))),
+      Promise.all(ALL_CATEGORIES.map((c) => getCategoryCompletions(c))),
+    ]);
+
+    const dMap = {} as Record<ExerciseCategory, number>;
+    const cMap = {} as Record<ExerciseCategory, number>;
+    ALL_CATEGORIES.forEach((cat, i) => {
+      dMap[cat] = difficulties[i];
+      cMap[cat] = completions[i];
+    });
+
+    setUnlockedDifficulties(dMap);
+    setCategoryCompletions(cMap);
+  }, []);
 
   const loadDailyExercises = useCallback(async () => {
     try {
@@ -51,54 +103,75 @@ export default function ExercisesScreen() {
   useEffect(() => {
     loadDailyExercises();
     loadAllExercises();
-  }, [loadDailyExercises, loadAllExercises]);
+    loadUnlockData();
+  }, [loadDailyExercises, loadAllExercises, loadUnlockData]);
+
+  // ─── Handlers ───────────────────────────────────────────────────────────────
 
   const handleComplete = useCallback(
     async (exerciseId: string, rating: number | null) => {
       try {
         await completeExercise(exerciseId, rating);
-        await loadDailyExercises();
+        // Reload everything after a completion
+        await Promise.all([loadDailyExercises(), loadUnlockData()]);
       } catch (e) {
         console.error('[Exercises] Failed to record completion:', e);
       }
     },
-    [loadDailyExercises],
+    [loadDailyExercises, loadUnlockData],
   );
 
-  // Group all exercises by category
-  const exercisesByCategory = ALL_CATEGORIES.reduce<Record<ExerciseCategory, Exercise[]>>(
-    (acc, cat) => {
-      acc[cat] = allExercises.filter((ex) => ex.category === cat);
-      return acc;
-    },
-    { warmup: [], breathing: [], articulation: [], speech: [] },
-  );
+  const scrollToLibrary = useCallback(() => {
+    libraryRef.current?.measureLayout(
+      scrollRef.current as any,
+      (_x, y) => {
+        scrollRef.current?.scrollTo({ y, animated: true });
+      },
+      () => {},
+    );
+  }, []);
 
-  // The user's unlocked difficulty is not async-read here to keep UI simple.
-  // We show difficulty > 1 as "locked" (muted) if we assume difficulty 1 is always unlocked.
-  // (A more complete approach would read getUnlockedDifficulty per category, but that
-  //  requires async state per category — kept simple per spec instructions.)
-  const UNLOCKED_DIFFICULTY = 1; // baseline: always show difficulty 1 as accessible
+  // ─── Derived data ─────────────────────────────────────────────────────────
+
+  const categoryExercises = allExercises
+    .filter((ex) => ex.category === selectedCategory)
+    .sort((a, b) => a.difficulty - b.difficulty || a.sortOrder - b.sortOrder);
+
+  const unlocked = unlockedDifficulties[selectedCategory];
+  const completions = categoryCompletions[selectedCategory];
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: theme.colors.bg }]}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.scrollContent, { paddingHorizontal: 16 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Today's Practice ── */}
         <Text style={[theme.type.title, { color: theme.text.primary, marginBottom: 16 }]}>
-          Today's Practice
+          Today&apos;s Practice
         </Text>
 
         {dailyLoading ? (
-          <Text style={[theme.type.small, { color: theme.text.muted }]}>Loading exercises…</Text>
+          <ActivityIndicator color={theme.primary[500]} style={styles.loader} />
         ) : dailyExercises.length === 0 ? (
           <View style={[styles.emptyState, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}>
-            <Text style={[theme.type.subtitle, { color: theme.text.secondary }]}>No exercises available</Text>
-            <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 4 }]}>
-              Check back tomorrow or browse the library below.
+            <Text style={[theme.type.subtitle, { color: theme.text.primary }]}>
+              Your first exercise takes 2 minutes
             </Text>
+            <Text style={[theme.type.small, { color: theme.text.secondary, marginTop: 4, textAlign: 'center' }]}>
+              Voice exercises help you speak with more clarity and confidence.
+            </Text>
+            <Pressable
+              style={[styles.ctaButton, { backgroundColor: theme.primary[500], borderRadius: theme.radius.full, marginTop: 12 }]}
+              onPress={scrollToLibrary}
+              accessibilityRole="button"
+              accessibilityLabel="Browse exercises"
+            >
+              <Text style={[theme.type.subtitle, { color: theme.text.onColor }]}>Browse exercises</Text>
+            </Pressable>
           </View>
         ) : (
           <View style={styles.cardList}>
@@ -120,45 +193,118 @@ export default function ExercisesScreen() {
           <StreakCalendar />
         </View>
 
-        {/* ── All Exercises ── */}
-        <View style={styles.section}>
-          <Text style={[theme.type.heading, { color: theme.text.primary, marginBottom: 12 }]}>
-            All Exercises
+        {/* ── Exercise Library ── */}
+        <View ref={libraryRef} style={styles.section}>
+          <Text style={[theme.type.heading, { color: theme.text.primary, marginBottom: 8 }]}>
+            Exercise Library
+          </Text>
+          <Text style={[theme.type.small, { color: theme.text.secondary, marginBottom: 16 }]}>
+            {CATEGORY_DESCRIPTIONS[selectedCategory]}
           </Text>
 
-          {libraryLoading ? (
-            <Text style={[theme.type.small, { color: theme.text.muted }]}>Loading library…</Text>
-          ) : (
-            ALL_CATEGORIES.map((cat) => {
-              const catExercises = exercisesByCategory[cat];
-              if (catExercises.length === 0) return null;
-
+          {/* Category tab row */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabRow}
+          >
+            {ALL_CATEGORIES.map((cat) => {
+              const isSelected = cat === selectedCategory;
               return (
-                <View key={cat} style={styles.categorySection}>
-                  {/* Category header */}
-                  <Text style={[theme.type.subtitle, { color: theme.text.secondary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1, fontSize: 12 }]}>
+                <Pressable
+                  key={cat}
+                  style={[
+                    styles.tab,
+                    {
+                      backgroundColor: isSelected ? theme.primary[500] : theme.colors.elevated,
+                      borderRadius: theme.radius.full,
+                    },
+                  ]}
+                  onPress={() => setSelectedCategory(cat)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isSelected }}
+                  accessibilityLabel={CATEGORY_LABELS[cat]}
+                >
+                  <Text
+                    style={[
+                      theme.type.small,
+                      {
+                        color: isSelected ? theme.text.onColor : theme.text.secondary,
+                        fontFamily: theme.fontFamily.semibold,
+                      },
+                    ]}
+                  >
                     {CATEGORY_LABELS[cat]}
                   </Text>
-
-                  <View style={styles.cardList}>
-                    {catExercises.map((ex) => {
-                      const isLocked = ex.difficulty > UNLOCKED_DIFFICULTY;
-                      return (
-                        <View key={ex.id} style={isLocked ? styles.lockedWrapper : undefined}>
-                          <ExerciseCard
-                            exercise={ex}
-                            onComplete={(rating) => handleComplete(ex.id, rating)}
-                          />
-                          {isLocked && (
-                            <View style={styles.lockedOverlay} />
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
+                </Pressable>
               );
-            })
+            })}
+          </ScrollView>
+
+          {/* Difficulty legend */}
+          <View style={styles.legendRow}>
+            <View style={styles.legendItem}>
+              <Text style={[styles.legendDot, { color: theme.primary[500] }]}>{'\u25CF'}</Text>
+              <Text style={[theme.type.caption, { color: theme.text.muted }]}>Beginner</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <Text style={[styles.legendDot, { color: theme.primary[500] }]}>{'\u25CF\u25CF'}</Text>
+              <Text style={[theme.type.caption, { color: theme.text.muted }]}>Intermediate</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <Text style={[styles.legendDot, { color: theme.primary[500] }]}>{'\u25CF\u25CF\u25CF'}</Text>
+              <Text style={[theme.type.caption, { color: theme.text.muted }]}>Advanced</Text>
+            </View>
+          </View>
+
+          {/* Exercise list */}
+          {libraryLoading ? (
+            <ActivityIndicator color={theme.primary[500]} style={styles.loader} />
+          ) : (
+            <View style={styles.cardList}>
+              {categoryExercises.map((ex) => {
+                const isLocked = ex.difficulty > unlocked;
+
+                if (!isLocked) {
+                  return (
+                    <ExerciseCard
+                      key={ex.id}
+                      exercise={ex}
+                      onComplete={(rating) => handleComplete(ex.id, rating)}
+                    />
+                  );
+                }
+
+                // Locked overlay with progress
+                const threshold = ex.difficulty * 5;
+                const remaining = Math.max(0, threshold - completions);
+                const progress = Math.min(1, completions / threshold);
+
+                return (
+                  <View key={ex.id} style={styles.lockedWrapper}>
+                    <ExerciseCard
+                      exercise={ex}
+                      onComplete={(rating) => handleComplete(ex.id, rating)}
+                    />
+                    <View style={[styles.lockedOverlay, { borderRadius: theme.radius.xl }]}>
+                      <View style={styles.lockBadge}>
+                        <Text style={[theme.type.small, { color: '#fff', textAlign: 'center', fontFamily: theme.fontFamily.semibold }]}>
+                          Complete {remaining} more {selectedCategory} exercises to unlock
+                        </Text>
+                        <View style={[styles.progressTrack, { backgroundColor: theme.colors.elevated }]}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              { backgroundColor: theme.primary[500], width: `${progress * 100}%` as any },
+                            ]}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           )}
         </View>
 
@@ -169,6 +315,8 @@ export default function ExercisesScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -176,25 +324,76 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 24,
   },
+  loader: {
+    marginVertical: 24,
+  },
   cardList: {
     gap: 12,
   },
   section: {
     marginTop: 24,
   },
-  categorySection: {
-    marginBottom: 24,
-  },
   emptyState: {
     padding: 24,
     alignItems: 'center',
   },
+  ctaButton: {
+    height: 44,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // ── Tab row ──
+  tabRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 4,
+  },
+  tab: {
+    height: 44,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // ── Difficulty legend ──
+  legendRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  legendDot: {
+    fontSize: 10,
+  },
+  // ── Locked exercises ──
   lockedWrapper: {
     position: 'relative',
   },
   lockedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',
-    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  lockBadge: {
+    alignItems: 'center',
+    gap: 8,
+    maxWidth: 240,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    alignSelf: 'stretch',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 6,
+    borderRadius: 3,
   },
 });
