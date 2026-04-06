@@ -9,19 +9,32 @@ import { exerciseData } from '../src/data/exercises';
 import { fonts } from '../src/theme/typography';
 import { useTheme } from '../src/theme/theme';
 import { sessionTracker } from '../src/services/sessionTracker';
+import {
+  requestNotificationPermission,
+  scheduleDailyExerciseReminder,
+  cancelDailyExerciseReminder,
+} from '../src/services/notifications';
+import { useSettingsStore } from '../src/stores/settingsStore';
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(false);
   const [fontsLoaded] = useFonts(fonts);
   const theme = useTheme();
+  const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
 
   const initDb = () => {
     setDbError(false);
     getDatabase()
       .then(() => seedExercises(exerciseData))
-      .then(() => {
+      .then(async () => {
         sessionTracker.start();
+        // Request permission then schedule (or skip) the daily reminder
+        const { notificationsEnabled: enabled } = useSettingsStore.getState();
+        const granted = await requestNotificationPermission();
+        if (granted && enabled) {
+          await scheduleDailyExerciseReminder(8);
+        }
         setDbReady(true);
       })
       .catch((err) => {
@@ -29,6 +42,15 @@ export default function RootLayout() {
         setDbError(true);
       });
   };
+
+  // Keep the daily reminder in sync whenever the user toggles notifications
+  useEffect(() => {
+    if (notificationsEnabled) {
+      scheduleDailyExerciseReminder(8).catch(console.warn);
+    } else {
+      cancelDailyExerciseReminder().catch(console.warn);
+    }
+  }, [notificationsEnabled]);
 
   useEffect(() => {
     initDb();
