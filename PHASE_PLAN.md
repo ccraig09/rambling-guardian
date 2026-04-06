@@ -58,7 +58,7 @@ Living ticket tracker. Check off as completed.
 - [ ] ~~RG-C.5~~ → Deferred to Phase D (needs calendar integration + speaker diarization to be useful; manual mode switching is ADHD-hostile)
 - [ ] RG-C.10: Notification system (alerts, summaries, coaching, streaks, exercise reminders)
 - [x] RG-C.6: BLE connection + real-time dashboard
-- [ ] RG-C.7: Session history + analytics
+- [x] RG-C.7: Session history + analytics
 - [ ] RG-C.8: Settings + threshold configuration
 - [ ] RG-C.9: Apple Watch forwarding
 - [ ] UI polish pass
