@@ -1,48 +1,166 @@
-import { useState, useCallback } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { View, StyleSheet, Alert, Linking } from 'react-native';
 import { router } from 'expo-router';
+import { Audio } from 'expo-av';
 import { useTheme } from '../../src/theme/theme';
 import { VoicePromptCard } from '../../src/components/VoicePromptCard';
 import { voicePrompts } from '../../src/data/voicePrompts';
-import { startRecording, stopRecording, cancelRecording } from '../../src/services/voiceRecorder';
+import {
+  startRecording,
+  stopRecording,
+  cancelRecording,
+  setOnMeteringUpdate,
+  playRecording,
+  stopPlayback,
+} from '../../src/services/voiceRecorder';
 import { insertVoiceSample } from '../../src/db/voiceSamples';
 
-type RecordingState = 'idle' | 'recording' | 'complete';
+type RecordingState = 'idle' | 'recording' | 'complete' | 'error';
+
+const MIN_DURATION_MS = 3000;
 
 export default function RecordScreen() {
   const theme = useTheme();
   const [promptIndex, setPromptIndex] = useState(0);
   const [state, setState] = useState<RecordingState>('idle');
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [lastRecordingPath, setLastRecordingPath] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const playbackSoundRef = useRef<Audio.Sound | null>(null);
+
+  // Set up metering callback once
+  useEffect(() => {
+    setOnMeteringUpdate((level) => setAudioLevel(level));
+    return () => {
+      setOnMeteringUpdate(null);
+    };
+  }, []);
+
+  // Clean up playback sound on unmount
+  useEffect(() => {
+    return () => {
+      if (playbackSoundRef.current) {
+        stopPlayback(playbackSoundRef.current).catch(() => {});
+        playbackSoundRef.current = null;
+      }
+    };
+  }, []);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const startTimer = useCallback(() => {
+    startTimeRef.current = Date.now();
+    setElapsedMs(0);
+    timerRef.current = setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 100);
+  }, []);
 
   const handleRecord = useCallback(async () => {
     if (state === 'recording') {
+      // Stop recording
+      clearTimer();
       const result = await stopRecording();
       if (result) {
-        await insertVoiceSample(result.filePath, result.durationMs);
-        setState('complete');
-        setTimeout(() => {
-          if (promptIndex < voicePrompts.length - 1) {
-            setPromptIndex((i) => i + 1);
-            setState('idle');
-          } else {
-            router.replace('/onboarding/complete');
-          }
-        }, 1000);
+        if (result.durationMs < MIN_DURATION_MS) {
+          // Too short -- discard and show error
+          const FileSystem = require('expo-file-system/legacy');
+          await FileSystem.deleteAsync(result.filePath, { idempotent: true });
+          setLastRecordingPath(null);
+          setState('error');
+        } else {
+          await insertVoiceSample(result.filePath, result.durationMs);
+          setLastRecordingPath(result.filePath);
+          setState('complete');
+        }
       }
-    } else if (state === 'idle') {
-      const started = await startRecording();
-      if (started) {
-        setState('recording');
+      setAudioLevel(0);
+    } else if (state === 'idle' || state === 'error') {
+      // Start recording
+      try {
+        const started = await startRecording();
+        if (started) {
+          setState('recording');
+          startTimer();
+        } else {
+          Alert.alert(
+            'Microphone Access',
+            'Please enable microphone access in Settings to record voice samples.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ],
+          );
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        Alert.alert('Recording Error', `Could not start recording: ${message}`);
+      }
+    } else if (state === 'complete') {
+      // "Use this recording" -- advance to next prompt
+      if (promptIndex < voicePrompts.length - 1) {
+        setPromptIndex((i) => i + 1);
+        setLastRecordingPath(null);
+        setElapsedMs(0);
+        setState('idle');
       } else {
-        Alert.alert('Microphone Access', 'Please enable microphone access in Settings to record voice samples.');
+        router.replace('/onboarding/complete');
       }
     }
-  }, [state, promptIndex]);
+  }, [state, promptIndex, clearTimer, startTimer]);
+
+  const handlePlayback = useCallback(async () => {
+    if (!lastRecordingPath) return;
+    // Stop any existing playback first
+    if (playbackSoundRef.current) {
+      await stopPlayback(playbackSoundRef.current).catch(() => {});
+      playbackSoundRef.current = null;
+    }
+    try {
+      const sound = await playRecording(lastRecordingPath);
+      playbackSoundRef.current = sound;
+      // Auto-cleanup when playback finishes
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if ('didJustFinish' in status && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+          if (playbackSoundRef.current === sound) {
+            playbackSoundRef.current = null;
+          }
+        }
+      });
+    } catch (err) {
+      Alert.alert('Playback Error', 'Could not play the recording.');
+    }
+  }, [lastRecordingPath]);
+
+  const handleReRecord = useCallback(async () => {
+    // Stop any playback
+    if (playbackSoundRef.current) {
+      await stopPlayback(playbackSoundRef.current).catch(() => {});
+      playbackSoundRef.current = null;
+    }
+    setLastRecordingPath(null);
+    setElapsedMs(0);
+    setAudioLevel(0);
+    setState('idle');
+  }, []);
 
   const handleSkip = useCallback(async () => {
+    clearTimer();
     if (state === 'recording') await cancelRecording();
+    if (playbackSoundRef.current) {
+      await stopPlayback(playbackSoundRef.current).catch(() => {});
+      playbackSoundRef.current = null;
+    }
     router.back();
-  }, [state]);
+  }, [state, clearTimer]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -51,7 +169,12 @@ export default function RecordScreen() {
         currentIndex={promptIndex}
         totalPrompts={voicePrompts.length}
         state={state}
+        audioLevel={audioLevel}
+        elapsedMs={elapsedMs}
+        lastRecordingPath={lastRecordingPath}
         onRecord={handleRecord}
+        onPlayback={handlePlayback}
+        onReRecord={handleReRecord}
         onSkip={handleSkip}
       />
     </View>
