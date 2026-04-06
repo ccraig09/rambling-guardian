@@ -5,7 +5,7 @@ import {
   ScrollView,
   Pressable,
   StyleSheet,
-  ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/theme';
@@ -40,6 +40,49 @@ const CATEGORY_DESCRIPTIONS: Record<ExerciseCategory, string> = {
   articulation: 'Sharpen consonants and vowels for crystal-clear speech.',
   speech: 'Practice real-world speaking patterns \u2014 pacing, pausing, storytelling.',
 };
+
+// ─── Skeleton ───────────────────────────────────────────────────────────────
+
+type Theme = ReturnType<typeof import('../../src/theme/theme').useTheme>;
+
+function SkeletonExerciseCards({ theme, count = 3 }: { theme: Theme; count?: number }) {
+  const opacity = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.85, duration: 750, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 750, useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+
+  return (
+    <View style={{ gap: 12 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            backgroundColor: theme.colors.card,
+            borderRadius: theme.radius.xl,
+            padding: 16,
+            gap: 10,
+            opacity,
+          }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ width: '55%', height: 14, backgroundColor: theme.colors.elevated, borderRadius: 6 }} />
+            <View style={{ width: 28, height: 28, backgroundColor: theme.colors.elevated, borderRadius: theme.radius.full }} />
+          </View>
+          <View style={{ width: '80%', height: 12, backgroundColor: theme.colors.elevated, borderRadius: 6 }} />
+          <View style={{ width: '45%', height: 12, backgroundColor: theme.colors.elevated, borderRadius: 6 }} />
+        </Animated.View>
+      ))}
+    </View>
+  );
+}
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -204,7 +247,7 @@ export default function ExercisesScreen() {
         </View>
 
         {dailyLoading ? (
-          <ActivityIndicator color={theme.primary[500]} style={styles.loader} />
+          <SkeletonExerciseCards theme={theme} count={3} />
         ) : dailyExercises.length === 0 ? (
           <View style={[styles.emptyState, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}>
             <Text style={[theme.type.subtitle, { color: theme.text.primary }]}>
@@ -333,7 +376,7 @@ export default function ExercisesScreen() {
 
           {/* Exercise list */}
           {libraryLoading ? (
-            <ActivityIndicator color={theme.primary[500]} style={styles.loader} />
+            <SkeletonExerciseCards theme={theme} count={4} />
           ) : (
             <View style={styles.cardList}>
               {categoryExercises.map((ex) => {
@@ -401,9 +444,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 24,
-  },
-  loader: {
-    marginVertical: 24,
   },
   cardList: {
     gap: 12,

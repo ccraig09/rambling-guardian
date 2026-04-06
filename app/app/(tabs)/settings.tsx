@@ -42,14 +42,29 @@ function SectionHeader({ label, theme }: { label: string; theme: ThemeType }) {
         {
           color: theme.text.muted,
           letterSpacing: 1.2,
-          marginTop: 24,
+          marginTop: 28,
           marginBottom: 8,
-          paddingHorizontal: 16,
+          paddingHorizontal: 4,
         },
       ]}
     >
       {label.toUpperCase()}
     </Text>
+  );
+}
+
+/** Card wrapper for a group of setting rows */
+function SettingGroup({ children, theme }: { children: React.ReactNode; theme: ThemeType }) {
+  return (
+    <View
+      style={{
+        backgroundColor: theme.colors.card,
+        borderRadius: theme.radius.xl,
+        overflow: 'hidden',
+      }}
+    >
+      {children}
+    </View>
   );
 }
 
@@ -71,9 +86,8 @@ function InfoRow({
     <View
       style={[
         styles.row,
-        {
-          backgroundColor: theme.colors.card,
-          borderBottomWidth: isLast ? 0 : StyleSheet.hairlineWidth,
+        !isLast && {
+          borderBottomWidth: StyleSheet.hairlineWidth,
           borderBottomColor: theme.colors.elevated,
         },
       ]}
@@ -156,6 +170,7 @@ export default function SettingsScreen() {
 
   const [localThresholds, setLocalThresholds] = useState<AlertThresholds>(settings.thresholds);
   const [isApplyingThresholds, setIsApplyingThresholds] = useState(false);
+  const [applySuccess, setApplySuccess] = useState(false);
 
   // ------------------------------------------------------------------
   // Handlers
@@ -185,11 +200,14 @@ export default function SettingsScreen() {
 
   async function handleApplyThresholds() {
     settings.setThresholds(localThresholds);
+    setApplySuccess(false);
     if (deviceState.connected) {
       setIsApplyingThresholds(true);
       await bleService.writeThresholds(localThresholds).catch(console.warn);
       setIsApplyingThresholds(false);
     }
+    setApplySuccess(true);
+    setTimeout(() => setApplySuccess(false), 2500);
   }
 
   // ------------------------------------------------------------------
@@ -228,7 +246,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Screen title */}
         <Text
-          style={[theme.type.title, { color: theme.text.primary, marginBottom: theme.spacing.lg }]}
+          style={[theme.type.title, { color: theme.text.primary, marginBottom: theme.spacing.sm }]}
         >
           Settings
         </Text>
@@ -239,104 +257,86 @@ export default function SettingsScreen() {
         <SectionHeader label="Device" theme={theme} />
 
         {!deviceState.connected ? (
-          <View
-            style={[
-              styles.row,
-              { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl },
-            ]}
-          >
-            <Text style={[theme.type.body, { color: theme.text.muted }]}>
-              Not connected — connect via the Session tab
-            </Text>
-          </View>
+          <SettingGroup theme={theme}>
+            <View style={[styles.row, { paddingVertical: 16 }]}>
+              <Text style={[theme.type.body, { color: theme.text.muted }]}>
+                Not connected — connect via the Session tab
+              </Text>
+            </View>
+          </SettingGroup>
         ) : (
           <>
-            {/* ── Sensitivity ── */}
-            <View
-              style={[
-                styles.settingRow,
-                {
-                  backgroundColor: theme.colors.card,
-                  borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: theme.colors.elevated,
-                },
-              ]}
-            >
-              <View style={styles.settingLeft}>
-                <Text style={[theme.type.body, { color: theme.text.primary }]}>Sensitivity</Text>
-                <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
-                  How aggressively to detect speech
-                </Text>
+            {/* ── Sensitivity + Alert Style ── */}
+            <SettingGroup theme={theme}>
+              {/* Sensitivity */}
+              <View
+                style={[
+                  styles.settingRow,
+                  {
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: theme.colors.elevated,
+                  },
+                ]}
+              >
+                <View style={styles.settingLeft}>
+                  <Text style={[theme.type.body, { color: theme.text.primary }]}>Sensitivity</Text>
+                  <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
+                    Speech detection aggressiveness
+                  </Text>
+                </View>
+                <View style={styles.segmentGroup}>
+                  {[0, 1, 2, 3].map((val) => (
+                    <Pressable
+                      key={val}
+                      onPress={() => handleSensitivityChange(val)}
+                      style={segmentStyle(deviceState.sensitivity === val)}
+                    >
+                      <Text style={segmentTextStyle(deviceState.sensitivity === val)}>
+                        {val}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
-              <View style={styles.segmentGroup}>
-                {[0, 1, 2, 3].map((val) => (
-                  <Pressable
-                    key={val}
-                    onPress={() => handleSensitivityChange(val)}
-                    style={segmentStyle(deviceState.sensitivity === val)}
-                  >
-                    <Text style={segmentTextStyle(deviceState.sensitivity === val)}>
-                      {val}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
 
-            {/* ── Alert Style ── */}
-            <View
-              style={[
-                styles.settingRow,
-                {
-                  backgroundColor: theme.colors.card,
-                  borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: theme.colors.elevated,
-                },
-              ]}
-            >
-              <View style={styles.settingLeft}>
-                <Text style={[theme.type.body, { color: theme.text.primary }]}>Alert Style</Text>
-                <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
-                  How the device alerts you
-                </Text>
+              {/* Alert Style */}
+              <View style={styles.settingRow}>
+                <View style={styles.settingLeft}>
+                  <Text style={[theme.type.body, { color: theme.text.primary }]}>Alert Style</Text>
+                  <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
+                    How the device alerts you
+                  </Text>
+                </View>
+                <View style={styles.segmentGroup}>
+                  {[
+                    { value: AlertModality.LED_ONLY, label: 'LED' },
+                    { value: AlertModality.VIBRATION_ONLY, label: 'Vibe' },
+                    { value: AlertModality.BOTH, label: 'Both' },
+                  ].map(({ value, label }) => (
+                    <Pressable
+                      key={value}
+                      onPress={() => handleModalityChange(value)}
+                      style={[segmentStyle(deviceState.modality === value), { paddingHorizontal: 8 }]}
+                    >
+                      <Text style={segmentTextStyle(deviceState.modality === value)}>
+                        {label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
-              <View style={styles.segmentGroup}>
-                {[
-                  { value: AlertModality.LED_ONLY, label: 'LED' },
-                  { value: AlertModality.VIBRATION_ONLY, label: 'Vibe' },
-                  { value: AlertModality.BOTH, label: 'Both' },
-                ].map(({ value, label }) => (
-                  <Pressable
-                    key={value}
-                    onPress={() => handleModalityChange(value)}
-                    style={[
-                      segmentStyle(deviceState.modality === value),
-                      { paddingHorizontal: 8 },
-                    ]}
-                  >
-                    <Text style={segmentTextStyle(deviceState.modality === value)}>
-                      {label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
+            </SettingGroup>
 
             {/* ── Alert Thresholds ── */}
-            <View
-              style={[
-                styles.thresholdsCard,
-                { backgroundColor: theme.colors.card },
-              ]}
-            >
-              <Text style={[theme.type.subtitle, { color: theme.text.primary }]}>
-                Alert Thresholds
-              </Text>
-              <Text
-                style={[theme.type.small, { color: theme.text.muted, marginTop: 2, marginBottom: 16 }]}
-              >
-                Time before each alert level triggers
-              </Text>
+            <SectionHeader label="Alert Thresholds" theme={theme} />
+            <SettingGroup theme={theme}>
+              <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }}>
+                <Text
+                  style={[theme.type.small, { color: theme.text.muted, paddingVertical: 12 }]}
+                >
+                  Time before each alert level triggers
+                </Text>
+              </View>
 
               {THRESHOLD_CONFIG.map(({ key, label }, i) => (
                 <View
@@ -349,9 +349,7 @@ export default function SettingsScreen() {
                     },
                   ]}
                 >
-                  <Text
-                    style={[theme.type.body, { color: theme.text.secondary, flex: 1 }]}
-                  >
+                  <Text style={[theme.type.body, { color: theme.text.secondary, flex: 1 }]}>
                     {label}
                   </Text>
                   <Stepper
@@ -364,28 +362,46 @@ export default function SettingsScreen() {
                 </View>
               ))}
 
-              {/* Apply button */}
-              <Pressable
-                onPress={handleApplyThresholds}
-                disabled={isApplyingThresholds}
-                style={[
-                  styles.applyBtn,
-                  {
-                    backgroundColor: theme.primary[500],
-                    borderRadius: theme.radius.lg,
-                    opacity: isApplyingThresholds ? 0.7 : 1,
-                  },
-                ]}
-              >
-                {isApplyingThresholds ? (
-                  <ActivityIndicator color={theme.text.onColor} size="small" />
-                ) : (
-                  <Text style={[theme.type.subtitle, { color: theme.text.onColor }]}>
-                    Apply to Device
-                  </Text>
+              {/* Apply button + success toast */}
+              <View style={{ padding: 16 }}>
+                {applySuccess && (
+                  <View
+                    style={[
+                      styles.successToast,
+                      {
+                        backgroundColor: `${theme.semantic.success}18`,
+                        borderRadius: theme.radius.md,
+                        marginBottom: 12,
+                      },
+                    ]}
+                  >
+                    <Text style={[theme.type.small, { color: theme.semantic.success, fontFamily: theme.fontFamily.semibold }]}>
+                      {deviceState.connected ? 'Thresholds applied to device' : 'Thresholds saved'}
+                    </Text>
+                  </View>
                 )}
-              </Pressable>
-            </View>
+                <Pressable
+                  onPress={handleApplyThresholds}
+                  disabled={isApplyingThresholds}
+                  style={[
+                    styles.applyBtn,
+                    {
+                      backgroundColor: theme.primary[500],
+                      borderRadius: theme.radius.lg,
+                      opacity: isApplyingThresholds ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  {isApplyingThresholds ? (
+                    <ActivityIndicator color={theme.text.onColor} size="small" />
+                  ) : (
+                    <Text style={[theme.type.subtitle, { color: theme.text.onColor }]}>
+                      Apply to Device
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
+            </SettingGroup>
           </>
         )}
 
@@ -394,84 +410,78 @@ export default function SettingsScreen() {
          * ================================================================ */}
         <SectionHeader label="App" theme={theme} />
 
-        {/* ── Daily Exercise Goal ── */}
-        <View
-          style={[
-            styles.settingRow,
-            {
-              backgroundColor: theme.colors.card,
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: theme.colors.elevated,
-            },
-          ]}
-        >
-          <View style={styles.settingLeft}>
-            <Text style={[theme.type.body, { color: theme.text.primary }]}>
-              Daily Exercise Goal
-            </Text>
-            <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
-              Exercises to complete per day
-            </Text>
+        <SettingGroup theme={theme}>
+          {/* Daily Exercise Goal */}
+          <View
+            style={[
+              styles.settingRow,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.elevated,
+              },
+            ]}
+          >
+            <View style={styles.settingLeft}>
+              <Text style={[theme.type.body, { color: theme.text.primary }]}>
+                Daily Exercise Goal
+              </Text>
+              <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
+                Exercises to complete per day
+              </Text>
+            </View>
+            <Stepper
+              value={settings.dailyExerciseTarget}
+              onDecrement={() =>
+                settings.setDailyExerciseTarget(Math.max(1, settings.dailyExerciseTarget - 1))
+              }
+              onIncrement={() =>
+                settings.setDailyExerciseTarget(Math.min(10, settings.dailyExerciseTarget + 1))
+              }
+              theme={theme}
+            />
           </View>
-          <Stepper
-            value={settings.dailyExerciseTarget}
-            onDecrement={() =>
-              settings.setDailyExerciseTarget(Math.max(1, settings.dailyExerciseTarget - 1))
-            }
-            onIncrement={() =>
-              settings.setDailyExerciseTarget(Math.min(10, settings.dailyExerciseTarget + 1))
-            }
-            theme={theme}
-          />
-        </View>
 
-        {/* ── Notifications ── */}
-        <View
-          style={[
-            styles.settingRow,
-            { backgroundColor: theme.colors.card },
-          ]}
-        >
-          <View style={styles.settingLeft}>
-            <Text style={[theme.type.body, { color: theme.text.primary }]}>Notifications</Text>
-            <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
-              Exercise reminders and session summaries
-            </Text>
+          {/* Notifications */}
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Text style={[theme.type.body, { color: theme.text.primary }]}>Notifications</Text>
+              <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
+                Exercise reminders and session summaries
+              </Text>
+            </View>
+            <Switch
+              value={settings.notificationsEnabled}
+              onValueChange={settings.setNotificationsEnabled}
+              trackColor={{ false: theme.colors.elevated, true: theme.primary[500] }}
+              thumbColor={theme.text.onColor}
+            />
           </View>
-          <Switch
-            value={settings.notificationsEnabled}
-            onValueChange={settings.setNotificationsEnabled}
-            trackColor={{ false: theme.colors.elevated, true: theme.primary[500] }}
-            thumbColor={theme.text.onColor}
-          />
-        </View>
+        </SettingGroup>
 
         {/* ================================================================
          * ABOUT section
          * ================================================================ */}
         <SectionHeader label="About" theme={theme} />
 
-        <InfoRow
-          label="Firmware"
-          value={deviceState.connected ? 'RG v1.0 PhaseC' : 'RG v1.0 PhaseC'}
-          theme={theme}
-        />
-        <InfoRow label="App Version" value="1.0.0" theme={theme} />
-        <InfoRow
-          label="Device Name"
-          value={deviceState.connected ? 'RamblingGuard' : '—'}
-          theme={theme}
-        />
-        <InfoRow
-          label="Battery"
-          value={deviceState.connected ? `${deviceState.battery}%` : '—'}
-          valueColor={deviceState.connected ? batteryColor : undefined}
-          theme={theme}
-          isLast
-        />
+        <SettingGroup theme={theme}>
+          <InfoRow label="Firmware" value="RG v1.0 PhaseC" theme={theme} />
+          <InfoRow label="App Version" value="1.0.0" theme={theme} />
+          <InfoRow
+            label="Device Name"
+            value={deviceState.connected ? 'RamblingGuard' : '—'}
+            theme={theme}
+          />
+          <InfoRow
+            label="Battery"
+            value={deviceState.connected ? `${deviceState.battery}%` : '—'}
+            valueColor={deviceState.connected ? batteryColor : undefined}
+            theme={theme}
+            isLast
+          />
+        </SettingGroup>
 
         {/* Bottom padding */}
-        <View style={{ height: 32 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -505,6 +515,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,
+    minHeight: 64,
   },
   settingLeft: {
     flex: 1,
@@ -533,22 +544,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /** Thresholds card — vertical layout */
-  thresholdsCard: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
   thresholdRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
     paddingVertical: 12,
   },
   applyBtn: {
-    marginTop: 16,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
+  },
+  successToast: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
   },
 });

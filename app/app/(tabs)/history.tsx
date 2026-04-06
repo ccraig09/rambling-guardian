@@ -2,13 +2,14 @@
  * History Screen — Session history list with lifetime stats and per-session
  * alert timeline. Tap any session card to expand the alert timeline in-place.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   Pressable,
   StyleSheet,
+  Animated,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -116,6 +117,55 @@ function AlertBadge({ level, theme }: AlertBadgeProps) {
     </View>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Skeleton loader
+// ---------------------------------------------------------------------------
+
+function SkeletonSessionCards({ theme }: { theme: Theme }) {
+  const opacity = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.85, duration: 750, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 750, useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.sessionCard,
+            {
+              backgroundColor: theme.colors.card,
+              borderRadius: theme.radius.xl,
+              opacity,
+            },
+          ]}
+        >
+          <View style={[styles.skeletonRow, { marginBottom: 10 }]}>
+            <View style={[styles.skeletonBlock, { width: '58%', height: 14, backgroundColor: theme.colors.elevated, borderRadius: 6 }]} />
+            <View style={[styles.skeletonBlock, { width: '18%', height: 12, backgroundColor: theme.colors.elevated, borderRadius: 6 }]} />
+          </View>
+          <View style={styles.skeletonRow}>
+            <View style={[styles.skeletonBlock, { width: '22%', height: 12, backgroundColor: theme.colors.elevated, borderRadius: 6 }]} />
+            <View style={[styles.skeletonBlock, { width: '14%', height: 12, backgroundColor: theme.colors.elevated, borderRadius: 6 }]} />
+            <View style={[styles.skeletonBlock, { width: '26%', height: 20, backgroundColor: theme.colors.elevated, borderRadius: theme.radius.full }]} />
+          </View>
+        </Animated.View>
+      ))}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 interface SessionCardProps {
   session: Session;
@@ -283,9 +333,7 @@ export default function HistoryScreen() {
 
         {/* ── Session List ── */}
         {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={theme.primary[500]} />
-          </View>
+          <SkeletonSessionCards theme={theme} />
         ) : sessions.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}>
             <Text style={[theme.type.subtitle, { color: theme.text.secondary, marginBottom: theme.spacing.sm }]}>
@@ -374,10 +422,13 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  center: {
+  skeletonRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 40,
+    justifyContent: 'space-between',
+    gap: 8,
   },
+  skeletonBlock: {},
   emptyCard: {
     padding: 24,
     alignItems: 'center',

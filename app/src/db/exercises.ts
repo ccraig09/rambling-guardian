@@ -241,6 +241,18 @@ export async function getCurrentStreak(): Promise<number> {
 }
 
 /**
+ * Number of exercises completed today (from the streaks table).
+ */
+export async function getTodayExerciseCount(): Promise<number> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ exercises_done: number }>(
+    'SELECT exercises_done FROM streaks WHERE date = ?',
+    [todayISO()],
+  );
+  return row?.exercises_done ?? 0;
+}
+
+/**
  * Completions for a single exercise within the last N days.
  */
 export async function getRecentCompletions(
