@@ -79,12 +79,49 @@ Sensitivity levels (0–3) apply multipliers { 1, 2, 4, 8 } on calibrated baseli
 - Has ADHD — keep pace, don't slow down, teach inline
 - Owns: XIAO ESP32S3 Sense, SunFounder Kepler Kit (breadboard, wires, resistors, WS2812 strip, buttons, transistors), 400mAh LiPo battery, JST-PH 2.0 connectors, 25-pack tactile buttons, soldering kit, micro SD card
 
-## Future Companion App
+## Companion App (Phase C — complete)
 
-A React Native companion app is planned (see Design Spec Phase D). When that work begins:
-- Use `ui-mastery` skill for all UI tickets
-- Reference `~/Workspace/.design-kb/10-mobile-patterns.md` for React Native patterns
-- Add a `DESIGN.md` to this repo to capture the companion app's brand personality
+React Native / Expo app at `app/`. Dark-first, indigo-tinted design system. All UI work requires `ui-mastery` skill.
+
+### App Tech Stack
+- Expo SDK 54, expo-router (file-based tabs + modal)
+- expo-sqlite (WAL mode) — local persistence, no cloud DB
+- expo-av — audio recording with real metering (`isMeteringEnabled: true`)
+- expo-haptics — tactile feedback on step completion, ratings
+- expo-notifications — local push only (no server)
+- react-native-ble-plx — BLE connection to device
+- zustand — state management (deviceStore, settingsStore)
+- @expo/vector-icons (Ionicons) — must `npx expo install @expo/vector-icons`
+- Plus Jakarta Sans — typeface via `@expo-google-fonts/plus-jakarta-sans`
+
+### App Commands
+```bash
+cd app && npx expo start                           # start dev server
+cd app && node node_modules/typescript/bin/tsc --noEmit  # type check (must run from app/)
+npx expo install @expo/vector-icons               # add icons (not auto-included)
+```
+
+### App Architecture
+- `app/src/theme/` — `useTheme()` hook, color palette, spacing, typography
+- `app/src/db/` — SQLite schema, exercises, sessions, voiceSamples
+- `app/src/stores/` — deviceStore (BLE state), settingsStore (preferences)
+- `app/src/services/bleManager.ts` — singleton BLEService, auto-reconnect, 9 GATT characteristics
+- `app/src/services/voiceRecorder.ts` — recording + playback + metering callbacks
+- `app/src/services/sessionTracker.ts` — subscribes to deviceStore via Zustand, creates/finalizes sessions
+- `app/src/components/ExerciseCard.tsx` — 4 states: collapsed / preview / active / completed
+- `app/src/components/StepTimer.tsx` — countdown with pause/resume, visual urgency at ≤5s
+- `app/src/components/StreakCalendar.tsx` — monthly calendar, tappable cells, skeleton loading
+- `app/src/components/WaveformBars.tsx` — real audio metering (circular buffer), fallback random
+
+### App Non-Negotiables
+- **expo-file-system**: import from `expo-file-system/legacy` (not `expo-file-system`) in Expo 54
+- **TypeScript**: run from `app/` directory — `node node_modules/typescript/bin/tsc --noEmit`
+- **iOS builds**: local EAS only — `eas build --local --platform ios`, no cloud builds
+- **DESIGN.md**: exists at repo root — reference for all UI decisions (brand, colors, tokens, components)
+- **Session modes (C.5)**: deferred to Phase D — auto-detection needs speaker diarization; manual switching is ADHD-hostile
+- **Skeleton loaders**: use `Animated.loop` opacity pulse instead of `ActivityIndicator` for initial loads
+- **BLE GATT UUIDs**: `4A980001–4A98000A` (service + 9 characteristics) — see `config.h`
+- **PAUSE_THRESHOLD_MS**: 3000ms (tuned on device — 1200ms too sensitive, 5000ms too slow)
 
 ## IDE / Tooling Notes
 - **LSP diagnostics are always false positives** — clang has no Arduino headers; `Serial`, `millis()`, `I2SClass` etc. always show as errors in the IDE. Ignore them. `arduino-cli compile` is the only truth.
