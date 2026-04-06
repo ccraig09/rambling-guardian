@@ -44,7 +44,7 @@ Living ticket tracker. Check off as completed.
 - [ ] RG-C.2: BLE connection management (WiFi deferred to Phase D)
 
 ### Design
-- [ ] RG-C.3.5: Design system + Figma feature designs (DESIGN.md, tokens, primitives)
+- [x] RG-C.3.5: Design system + Figma feature designs (DESIGN.md, tokens, primitives)
 
 ### App
 - [x] RG-C.3: React Native Expo project scaffold
