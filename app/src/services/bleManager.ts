@@ -39,6 +39,8 @@ class BLEService {
   private statsListeners: Set<StatsListener> = new Set();
   private scanning = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  // Tracks last-known battery level so we can detect threshold crossings
+  private currentBattery = 100;
 
   constructor() {
     this.manager = new BleManager();
@@ -58,6 +60,20 @@ class BLEService {
 
   /** Push partial state into the Zustand store (notifies all React subscribers). */
   private updateState(partial: Partial<DeviceState>) {
+    // Check for battery crossing the 20 % warning threshold before updating
+    if ('battery' in partial && partial.battery !== undefined) {
+      const prev = this.currentBattery;
+      const next = partial.battery;
+      this.currentBattery = next;
+      // Fire once per crossing (prev > 20 and next <= 20), not on every tick
+      if (prev > 20 && next <= 20) {
+        import('./notifications')
+          .then(({ sendLowBatteryNotification }) => {
+            sendLowBatteryNotification(next).catch(console.warn);
+          })
+          .catch(console.warn);
+      }
+    }
     useDeviceStore.getState().updateDevice(partial);
   }
 
