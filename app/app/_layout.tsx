@@ -8,6 +8,7 @@ import { seedExercises } from '../src/db/exercises';
 import { exerciseData } from '../src/data/exercises';
 import { fonts } from '../src/theme/typography';
 import { useTheme } from '../src/theme/theme';
+import { sessionTracker } from '../src/services/sessionTracker';
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
@@ -19,7 +20,10 @@ export default function RootLayout() {
     setDbError(false);
     getDatabase()
       .then(() => seedExercises(exerciseData))
-      .then(() => setDbReady(true))
+      .then(() => {
+        sessionTracker.start();
+        setDbReady(true);
+      })
       .catch((err) => {
         console.error('[DB] Init failed:', err);
         setDbError(true);
