@@ -74,6 +74,11 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       confirmed   INTEGER NOT NULL DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS exercise_favorites (
+      exercise_id TEXT PRIMARY KEY REFERENCES exercises(id),
+      added_at    INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
     CREATE INDEX IF NOT EXISTS idx_alert_events_session ON alert_events(session_id);
     CREATE INDEX IF NOT EXISTS idx_completions_exercise ON exercise_completions(exercise_id);

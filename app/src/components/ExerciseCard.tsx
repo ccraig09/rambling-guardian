@@ -9,6 +9,8 @@ interface ExerciseCardProps {
   exercise: Exercise;
   onStart?: () => void;
   onComplete: (rating: number | null) => void;
+  isFavorited?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 type CardState = 'collapsed' | 'preview' | 'active' | 'completed';
@@ -40,7 +42,7 @@ function CategoryBadge({ category }: { category: ExerciseCategory }) {
   );
 }
 
-export function ExerciseCard({ exercise, onStart, onComplete }: ExerciseCardProps) {
+export function ExerciseCard({ exercise, onStart, onComplete, isFavorited, onToggleFavorite }: ExerciseCardProps) {
   const theme = useTheme();
   const [cardState, setCardState] = useState<CardState>('collapsed');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -120,31 +122,45 @@ export function ExerciseCard({ exercise, onStart, onComplete }: ExerciseCardProp
   // ─── Collapsed state ────────────────────────────────────────────────────────
   if (cardState === 'collapsed') {
     return (
-      <Pressable
-        style={[styles.card, { backgroundColor: theme.colors.card }]}
-        onPress={() => setCardState('preview')}
-        accessibilityRole="button"
-        accessibilityLabel={`Preview ${exercise.title}`}
-      >
-        <CategoryBadge category={exercise.category} />
-        <Text style={[theme.type.subtitle, { color: theme.text.primary, marginTop: 4 }]}>
-          {exercise.title}
-        </Text>
-        <Text style={[theme.type.small, { color: theme.text.secondary, marginTop: 4 }]}>
-          {exercise.description}
-        </Text>
-        <View style={styles.metaRow}>
-          <Text style={[theme.type.caption, { color: theme.text.tertiary }]}>
-            {durationStr}
+      <View style={[styles.card, { backgroundColor: theme.colors.card }]}>
+        <Pressable
+          onPress={() => setCardState('preview')}
+          style={styles.cardPressable}
+          accessibilityRole="button"
+          accessibilityLabel={`Preview ${exercise.title}`}
+        >
+          <CategoryBadge category={exercise.category} />
+          <Text style={[theme.type.subtitle, { color: theme.text.primary, marginTop: 4 }]}>
+            {exercise.title}
           </Text>
-          <Text style={[theme.type.caption, { color: theme.text.tertiary }]}>
-            {'\u00B7'}
+          <Text style={[theme.type.small, { color: theme.text.secondary, marginTop: 4 }]}>
+            {exercise.description}
           </Text>
-          <Text style={[theme.type.caption, { color: theme.text.tertiary }]}>
-            {difficultyLabel}
-          </Text>
-        </View>
-      </Pressable>
+          <View style={styles.metaRow}>
+            <Text style={[theme.type.caption, { color: theme.text.tertiary }]}>
+              {durationStr}
+            </Text>
+            <Text style={[theme.type.caption, { color: theme.text.tertiary }]}>
+              {'\u00B7'}
+            </Text>
+            <Text style={[theme.type.caption, { color: theme.text.tertiary }]}>
+              {difficultyLabel}
+            </Text>
+          </View>
+        </Pressable>
+        {onToggleFavorite && (
+          <Pressable
+            onPress={onToggleFavorite}
+            style={styles.favoriteButton}
+            accessibilityRole="button"
+            accessibilityLabel={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Text style={{ fontSize: 20, color: isFavorited ? theme.alert.urgent : theme.text.muted }}>
+              {isFavorited ? '\u2665' : '\u2661'}
+            </Text>
+          </Pressable>
+        )}
+      </View>
     );
   }
 
@@ -403,6 +419,18 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     gap: 8,
+  },
+  cardPressable: {
+    flex: 1,
+  },
+  favoriteButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badge: {
     alignSelf: 'flex-start',

@@ -12,7 +12,15 @@ import { useTheme } from '../../src/theme/theme';
 import { ExerciseCard, getCategoryColor } from '../../src/components/ExerciseCard';
 import { StreakCalendar } from '../../src/components/StreakCalendar';
 import { getDailyExercises, getUnlockedDifficulty } from '../../src/services/exerciseEngine';
-import { getExercises, completeExercise, getCategoryCompletions } from '../../src/db/exercises';
+import {
+  getExercises,
+  completeExercise,
+  getCategoryCompletions,
+  getFavoriteIds,
+  getFavoriteExercises,
+  toggleFavorite,
+  autoFavoriteIfHighRated,
+} from '../../src/db/exercises';
 import type { Exercise, ExerciseCategory } from '../../src/types';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -47,6 +55,10 @@ export default function ExercisesScreen() {
   // Library
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
+
+  // Favorites
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [favoriteExercises, setFavoriteExercises] = useState<Exercise[]>([]);
 
   // Tabbed navigation
   const [selectedCategory, setSelectedCategory] = useState<ExerciseCategory>('warmup');
@@ -100,11 +112,22 @@ export default function ExercisesScreen() {
     }
   }, []);
 
+  const loadFavorites = useCallback(async () => {
+    try {
+      const [ids, exs] = await Promise.all([getFavoriteIds(), getFavoriteExercises()]);
+      setFavoriteIds(new Set(ids));
+      setFavoriteExercises(exs);
+    } catch (e) {
+      console.error('[Exercises] Failed to load favorites:', e);
+    }
+  }, []);
+
   useEffect(() => {
     loadDailyExercises();
     loadAllExercises();
     loadUnlockData();
-  }, [loadDailyExercises, loadAllExercises, loadUnlockData]);
+    loadFavorites();
+  }, [loadDailyExercises, loadAllExercises, loadUnlockData, loadFavorites]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
 
@@ -112,14 +135,27 @@ export default function ExercisesScreen() {
     async (exerciseId: string, rating: number | null) => {
       try {
         await completeExercise(exerciseId, rating);
+        await autoFavoriteIfHighRated(exerciseId, rating);
         // Reload everything after a completion
-        await Promise.all([loadDailyExercises(), loadUnlockData()]);
+        await Promise.all([loadDailyExercises(), loadUnlockData(), loadFavorites()]);
       } catch (e) {
         console.error('[Exercises] Failed to record completion:', e);
       }
     },
-    [loadDailyExercises, loadUnlockData],
+    [loadDailyExercises, loadUnlockData, loadFavorites],
   );
+
+  const handleToggleFavorite = useCallback(async (exerciseId: string) => {
+    try {
+      await toggleFavorite(exerciseId);
+      const ids = await getFavoriteIds();
+      setFavoriteIds(new Set(ids));
+      const exs = await getFavoriteExercises();
+      setFavoriteExercises(exs);
+    } catch (e) {
+      console.error('[Exercises] Failed to toggle favorite:', e);
+    }
+  }, []);
 
   const scrollToLibrary = useCallback(() => {
     libraryRef.current?.measureLayout(
@@ -192,6 +228,8 @@ export default function ExercisesScreen() {
               <ExerciseCard
                 key={ex.id}
                 exercise={ex}
+                isFavorited={favoriteIds.has(ex.id)}
+                onToggleFavorite={() => handleToggleFavorite(ex.id)}
                 onComplete={(rating) => handleComplete(ex.id, rating)}
               />
             ))}
@@ -205,6 +243,29 @@ export default function ExercisesScreen() {
           </Text>
           <StreakCalendar />
         </View>
+
+        {/* ── Favorites ── */}
+        {favoriteIds.size > 0 && (
+          <View style={styles.section}>
+            <Text style={[theme.type.heading, { color: theme.text.primary, marginBottom: 8 }]}>
+              Favorites
+            </Text>
+            <Text style={[theme.type.small, { color: theme.text.secondary, marginBottom: 12 }]}>
+              Your bookmarked and highly-rated exercises.
+            </Text>
+            <View style={styles.cardList}>
+              {favoriteExercises.map((ex) => (
+                <ExerciseCard
+                  key={ex.id}
+                  exercise={ex}
+                  isFavorited={favoriteIds.has(ex.id)}
+                  onToggleFavorite={() => handleToggleFavorite(ex.id)}
+                  onComplete={(rating) => handleComplete(ex.id, rating)}
+                />
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* ── Exercise Library ── */}
         <View ref={libraryRef} style={styles.section}>
@@ -283,6 +344,8 @@ export default function ExercisesScreen() {
                     <ExerciseCard
                       key={ex.id}
                       exercise={ex}
+                      isFavorited={favoriteIds.has(ex.id)}
+                      onToggleFavorite={() => handleToggleFavorite(ex.id)}
                       onComplete={(rating) => handleComplete(ex.id, rating)}
                     />
                   );
@@ -297,6 +360,8 @@ export default function ExercisesScreen() {
                   <View key={ex.id} style={styles.lockedWrapper}>
                     <ExerciseCard
                       exercise={ex}
+                      isFavorited={favoriteIds.has(ex.id)}
+                      onToggleFavorite={() => handleToggleFavorite(ex.id)}
                       onComplete={(rating) => handleComplete(ex.id, rating)}
                     />
                     <View style={[styles.lockedOverlay, { borderRadius: theme.radius.xl }]}>

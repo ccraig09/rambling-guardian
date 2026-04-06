@@ -257,3 +257,71 @@ export async function getRecentCompletions(
   );
   return row?.count ?? 0;
 }
+
+// ─── Favorites ───────────────────────────────────────────────────────────────
+
+/** Toggle favorite status. Returns new isFavorited state. */
+export async function toggleFavorite(exerciseId: string): Promise<boolean> {
+  const db = await getDatabase();
+  const existing = await db.getFirstAsync<{ exercise_id: string }>(
+    'SELECT exercise_id FROM exercise_favorites WHERE exercise_id = ?',
+    [exerciseId],
+  );
+  if (existing) {
+    await db.runAsync('DELETE FROM exercise_favorites WHERE exercise_id = ?', [exerciseId]);
+    return false;
+  } else {
+    await db.runAsync(
+      'INSERT INTO exercise_favorites (exercise_id, added_at) VALUES (?, ?)',
+      [exerciseId, Date.now()],
+    );
+    return true;
+  }
+}
+
+/** Check if an exercise is favorited. */
+export async function isFavorite(exerciseId: string): Promise<boolean> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ exercise_id: string }>(
+    'SELECT exercise_id FROM exercise_favorites WHERE exercise_id = ?',
+    [exerciseId],
+  );
+  return !!row;
+}
+
+/** Get all favorited exercise IDs. */
+export async function getFavoriteIds(): Promise<string[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<{ exercise_id: string }>(
+    'SELECT exercise_id FROM exercise_favorites ORDER BY added_at DESC',
+  );
+  return rows.map((r) => r.exercise_id);
+}
+
+/** Get full Exercise objects for all favorites. */
+export async function getFavoriteExercises(): Promise<Exercise[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<ExerciseRow>(
+    `SELECT e.* FROM exercises e
+     INNER JOIN exercise_favorites f ON e.id = f.exercise_id
+     ORDER BY f.added_at DESC`,
+  );
+  return rows.map(mapExerciseRow);
+}
+
+/** Auto-favorite when rating is 4 or 5. Call after completeExercise. */
+export async function autoFavoriteIfHighRated(exerciseId: string, rating: number | null): Promise<void> {
+  if (rating !== null && rating >= 4) {
+    const db = await getDatabase();
+    const exists = await db.getFirstAsync<{ exercise_id: string }>(
+      'SELECT exercise_id FROM exercise_favorites WHERE exercise_id = ?',
+      [exerciseId],
+    );
+    if (!exists) {
+      await db.runAsync(
+        'INSERT INTO exercise_favorites (exercise_id, added_at) VALUES (?, ?)',
+        [exerciseId, Date.now()],
+      );
+    }
+  }
+}

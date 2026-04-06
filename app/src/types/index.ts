@@ -99,6 +99,11 @@ export interface ExerciseCompletion {
   rating: number | null; // 1-5
 }
 
+export interface ExerciseFavorite {
+  exerciseId: string;
+  addedAt: number;
+}
+
 export interface Streak {
   id: number;
   date: string; // YYYY-MM-DD
