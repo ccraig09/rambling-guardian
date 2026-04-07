@@ -103,27 +103,35 @@ class BLEService {
 
   /** Scan for the RamblingGuard device and connect. */
   async scanAndConnect(): Promise<void> {
-    if (this.scanning) return;
+    if (this.scanning) {
+      useDeviceStore.getState().setConnectionState(ConnectionState.SCANNING);
+      return;
+    }
 
     const store = useDeviceStore.getState();
     store.setConnectionState(ConnectionState.SCANNING);
 
     // Wait for BLE to be powered on (up to 5 s)
-    const bleState = await this.manager.state();
-    if (bleState !== State.PoweredOn) {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(
-          () => reject(new Error('Bluetooth not available')),
-          5000,
-        );
-        const sub = this.manager.onStateChange((state) => {
-          if (state === State.PoweredOn) {
-            clearTimeout(timeout);
-            sub.remove();
-            resolve();
-          }
-        }, true);
-      });
+    try {
+      const bleState = await this.manager.state();
+      if (bleState !== State.PoweredOn) {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error('Bluetooth not available')),
+            5000,
+          );
+          const sub = this.manager.onStateChange((state) => {
+            if (state === State.PoweredOn) {
+              clearTimeout(timeout);
+              sub.remove();
+              resolve();
+            }
+          }, true);
+        });
+      }
+    } catch (e) {
+      useDeviceStore.getState().setConnectionState(ConnectionState.FAILED);
+      throw e;
     }
 
     this.scanning = true;
@@ -177,33 +185,33 @@ class BLEService {
       store.setLastDeviceId(connected.id);
       saveSetting('lastDeviceId', connected.id).catch(console.warn);
 
-      // Monitor disconnection -> conditional auto-reconnect
-      connected.onDisconnected(() => {
-        this.cleanupSubscriptions();
-        this.device = null;
-        useDeviceStore.getState().setConnectionState(ConnectionState.IDLE);
-        // Only auto-reconnect if disconnect was unexpected
-        if (!this.intentionalDisconnect) {
-          this.reconnectTimer = setTimeout(() => {
-            this.scanAndConnect().catch(() => {
-              console.log('[BLE] Reconnect failed');
-            });
-          }, 3000);
-        }
-        this.intentionalDisconnect = false;
-      });
-
-      // Bootstrap state from current characteristic values
-      await this.readInitialValues(connected);
-
-      // Subscribe to live notifications
-      await this.subscribeToNotifications(connected);
-
-      useDeviceStore.getState().setConnectionState(ConnectionState.CONNECTED);
+      await this.setupPostConnection(connected);
     } catch (e) {
       useDeviceStore.getState().setConnectionState(ConnectionState.FAILED);
       throw e;
     }
+  }
+
+  /** Shared post-connection setup: disconnect handler, initial reads, subscriptions. */
+  private async setupPostConnection(device: Device): Promise<void> {
+    // Monitor disconnection -> conditional auto-reconnect
+    device.onDisconnected(() => {
+      this.cleanupSubscriptions();
+      this.device = null;
+      useDeviceStore.getState().setConnectionState(ConnectionState.IDLE);
+      if (!this.intentionalDisconnect) {
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnect().catch(() => {
+            console.log('[BLE] Auto-reconnect failed');
+          });
+        }, 3000);
+      }
+      this.intentionalDisconnect = false;
+    });
+
+    await this.readInitialValues(device);
+    await this.subscribeToNotifications(device);
+    useDeviceStore.getState().setConnectionState(ConnectionState.CONNECTED);
   }
 
   // -------------------------------------------------------------------
@@ -328,28 +336,7 @@ class BLEService {
         const device = await this.manager.connectToDevice(lastId, { timeout: 10_000 });
         await device.discoverAllServicesAndCharacteristics();
         this.device = device;
-        // Reuse connectToDevice for disconnect handler, initial reads, subscriptions
-        // But we already connected — so we manually do the post-connection setup
-        const store = useDeviceStore.getState();
-        store.setLastDeviceId(device.id);
-
-        device.onDisconnected(() => {
-          this.cleanupSubscriptions();
-          this.device = null;
-          useDeviceStore.getState().setConnectionState(ConnectionState.IDLE);
-          if (!this.intentionalDisconnect) {
-            this.reconnectTimer = setTimeout(() => {
-              this.scanAndConnect().catch(() => {
-                console.log('[BLE] Reconnect failed');
-              });
-            }, 3000);
-          }
-          this.intentionalDisconnect = false;
-        });
-
-        await this.readInitialValues(device);
-        await this.subscribeToNotifications(device);
-        useDeviceStore.getState().setConnectionState(ConnectionState.CONNECTED);
+        await this.setupPostConnection(device);
       } catch {
         // Fall back to full scan
         await this.scanAndConnect();
@@ -381,7 +368,11 @@ class BLEService {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.cleanupSubscriptions();
     if (this.device) {
-      await this.device.cancelConnection();
+      try {
+        await this.device.cancelConnection();
+      } catch {
+        // Device may already be disconnected — safe to ignore
+      }
       this.device = null;
     }
     useDeviceStore.getState().setConnectionState(ConnectionState.IDLE);

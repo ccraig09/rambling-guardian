@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AlertThresholds } from '../types';
 import { loadAllSettings, saveSetting, saveSettings } from '../db/settings';
+import { useDeviceStore } from './deviceStore';
 
 interface SettingsStore {
   _hydrated: boolean;
@@ -68,6 +69,13 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     // Theme
     const th = raw.get('theme');
     if (th === 'light' || th === 'dark' || th === 'system') parsed.theme = th;
+
+    // Hydrate lastDeviceId into deviceStore (cross-store, but done here since
+    // settings hydration is the single DB read pass at startup)
+    const lastDeviceId = raw.get('lastDeviceId');
+    if (lastDeviceId) {
+      useDeviceStore.getState().setLastDeviceId(lastDeviceId);
+    }
 
     set({ ...parsed, _hydrated: true });
   },
