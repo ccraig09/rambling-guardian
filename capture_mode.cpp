@@ -72,6 +72,12 @@ static void onSpeechEnded(EventType event, int payload) {
   }
 }
 
+static void onBatteryCritical(EventType event, int payload) {
+  if (state == CAPTURE_RECORDING) {
+    stopRecording("battery critical");
+  }
+}
+
 // ============================================
 // Public API
 // ============================================
@@ -80,6 +86,7 @@ void captureModeInit() {
   eventBusSubscribe(EVENT_BUTTON_DOUBLE, onDoublePress);
   eventBusSubscribe(EVENT_SPEECH_STARTED, onSpeechStarted);
   eventBusSubscribe(EVENT_SPEECH_ENDED, onSpeechEnded);
+  eventBusSubscribe(EVENT_BATTERY_CRITICAL, onBatteryCritical);
   Serial.println("[Capture] Capture mode initialized");
 }
 

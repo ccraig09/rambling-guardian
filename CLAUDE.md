@@ -52,6 +52,9 @@ Debug serial prints are gated by `#define DEBUG_AUDIO` in config.h (commented ou
 VAD auto-calibrates on boot (~6s): 5 warmup + 30 measurement windows × 200ms. Serial: `[Audio] Calibrated: ambient=XX, threshold=YY`
 Sensitivity levels (0–3) apply multipliers { 1, 2, 4, 8 } on calibrated baseline. Threshold capped at 80 — safe to boot mid-meeting.
 
+### Battery Safe-Stop Sequence
+When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
+
 ## Workflow Docs
 - **Phase Plan:** `PHASE_PLAN.md` — living ticket checklist, current phase + all future phases
 - **Agent Workflow:** `AGENT_WORKFLOW.md` — 5-step per-ticket process, skills table, personas

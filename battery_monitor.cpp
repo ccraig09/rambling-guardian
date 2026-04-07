@@ -54,7 +54,12 @@ void batteryMonitorUpdate() {
     eventBusPublish(EVENT_BATTERY_CRITICAL, batteryPercent);
     Serial.println("[Battery] CRITICAL — initiating graceful shutdown");
     esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTON), ESP_EXT1_WAKEUP_ANY_LOW);
-    delay(1000);
+    // PROVISIONAL: 2s delay as temporary safety margin for capture_mode to flush
+    // WAV data and session log after receiving EVENT_BATTERY_CRITICAL. The event-bus
+    // subscription is the real safe-stop mechanism — this delay is a stopgap.
+    // Future: replace with a completion handshake (capture_mode sets a "flush
+    // complete" flag that battery_monitor checks before sleeping).
+    delay(2000);
     esp_deep_sleep_start();
   }
   else if (batteryPercent <= BATTERY_WARNING_PERCENT && !warningFired) {
