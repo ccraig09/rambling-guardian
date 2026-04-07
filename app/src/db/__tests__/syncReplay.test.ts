@@ -94,3 +94,35 @@ describe('getPendingSyncCount', () => {
     expect(count).toBe(7);
   });
 });
+
+describe('upsert idempotency', () => {
+  const session = {
+    id: 'device-session-replay',
+    startedAt: 1712400000000,
+    endedAt: 1712403600000,
+    durationMs: 3600000,
+    mode: 'solo' as const,
+    alertCount: 3,
+    maxAlert: 2,
+    speechSegments: 8,
+    sensitivity: 1,
+  };
+
+  test('replaying the same session twice produces identical SQL', async () => {
+    await upsertDeviceSession(session);
+    const firstCall = mockRunAsync.mock.calls[0];
+
+    mockRunAsync.mockClear();
+    await upsertDeviceSession(session);
+    const secondCall = mockRunAsync.mock.calls[0];
+
+    expect(firstCall[0]).toBe(secondCall[0]); // Same SQL
+    expect(firstCall[1]).toEqual(secondCall[1]); // Same params
+  });
+
+  test('ON CONFLICT sets synced_from_device = 1 in UPDATE clause', async () => {
+    await upsertDeviceSession(session);
+    const sql = mockRunAsync.mock.calls[0][0] as string;
+    expect(sql).toContain('synced_from_device = 1');
+  });
+});
