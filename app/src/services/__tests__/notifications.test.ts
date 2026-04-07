@@ -48,9 +48,22 @@ describe('getNotificationPermissionStatus', () => {
     expect(result).toBe('denied');
   });
 
-  test('returns "undetermined" for other statuses', async () => {
+  test('returns "undetermined" when not yet prompted', async () => {
     mockGetPermissionsAsync.mockResolvedValue({ status: 'undetermined' });
     const result = await getNotificationPermissionStatus();
     expect(result).toBe('undetermined');
+  });
+
+  test('denied and undetermined are distinguishable (not collapsed to boolean)', async () => {
+    mockGetPermissionsAsync.mockResolvedValue({ status: 'denied' });
+    const denied = await getNotificationPermissionStatus();
+
+    mockGetPermissionsAsync.mockResolvedValue({ status: 'undetermined' });
+    const undetermined = await getNotificationPermissionStatus();
+
+    expect(denied).not.toBe(undetermined);
+    // UI should only show "blocked" warning for denied, not undetermined
+    expect(denied).toBe('denied');
+    expect(undetermined).toBe('undetermined');
   });
 });

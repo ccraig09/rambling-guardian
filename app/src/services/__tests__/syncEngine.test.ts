@@ -6,6 +6,7 @@ import {
   beginSync,
   completeSync,
   failSync,
+  resetSyncPhase,
 } from '../syncEngine';
 import { useSessionStore } from '../../stores/sessionStore';
 import { SyncPhase } from '../../types';
@@ -62,6 +63,38 @@ describe('checkpoint persistence', () => {
     mockDb.set('syncCheckpoint', JSON.stringify({ foo: 'bar' }));
     const result = await loadSyncCheckpoint();
     expect(result).toBeNull();
+  });
+
+  test('loadSyncCheckpoint normalizes missing numeric fields to safe defaults', async () => {
+    // Partial JSON with only deviceCheckpoint — everything else missing
+    mockDb.set('syncCheckpoint', JSON.stringify({ deviceCheckpoint: 'cp-partial' }));
+    const result = await loadSyncCheckpoint();
+    expect(result).not.toBeNull();
+    expect(result!.deviceCheckpoint).toBe('cp-partial');
+    expect(result!.lastSuccessfulSyncAt).toBe(0);
+    expect(result!.lastImportedSessionId).toBeNull();
+    expect(result!.syncAttemptCount).toBe(0);
+    expect(result!.lastSyncError).toBeNull();
+  });
+
+  test('loadSyncCheckpoint normalizes non-numeric syncAttemptCount to 0', async () => {
+    mockDb.set('syncCheckpoint', JSON.stringify({
+      deviceCheckpoint: 'cp-bad',
+      syncAttemptCount: 'not-a-number',
+    }));
+    const result = await loadSyncCheckpoint();
+    expect(result).not.toBeNull();
+    expect(result!.syncAttemptCount).toBe(0);
+  });
+
+  test('beginSync after partial checkpoint does not produce NaN', async () => {
+    // Save partial checkpoint with only deviceCheckpoint
+    mockDb.set('syncCheckpoint', JSON.stringify({ deviceCheckpoint: 'cp-partial' }));
+    await beginSync();
+    const checkpoint = await loadSyncCheckpoint();
+    expect(checkpoint).not.toBeNull();
+    expect(Number.isNaN(checkpoint!.syncAttemptCount)).toBe(false);
+    expect(checkpoint!.syncAttemptCount).toBe(1);
   });
 
   test('clearSyncCheckpoint removes checkpoint', async () => {
@@ -127,5 +160,51 @@ describe('sync phase transitions', () => {
 
     const checkpoint = await loadSyncCheckpoint();
     expect(checkpoint!.lastSyncError).toBe('network timeout');
+  });
+});
+
+describe('sync phase reset', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('completeSync auto-resets to IDLE after delay', async () => {
+    await beginSync();
+    await completeSync();
+    expect(useSessionStore.getState().syncPhase).toBe(SyncPhase.COMPLETE);
+
+    jest.advanceTimersByTime(3000);
+    expect(useSessionStore.getState().syncPhase).toBe(SyncPhase.IDLE);
+  });
+
+  test('failSync auto-resets to IDLE after delay', async () => {
+    await beginSync();
+    await failSync('error');
+    expect(useSessionStore.getState().syncPhase).toBe(SyncPhase.FAILED);
+
+    jest.advanceTimersByTime(3000);
+    expect(useSessionStore.getState().syncPhase).toBe(SyncPhase.IDLE);
+  });
+
+  test('beginSync cancels pending reset from previous sync', async () => {
+    await beginSync();
+    await completeSync();
+    // Start a new sync before the reset fires
+    await beginSync();
+    jest.advanceTimersByTime(3000);
+    // Should still be in REQUESTING_MANIFEST, not reset to IDLE
+    expect(useSessionStore.getState().syncPhase).toBe(SyncPhase.REQUESTING_MANIFEST);
+  });
+
+  test('resetSyncPhase immediately sets IDLE', async () => {
+    await beginSync();
+    await completeSync();
+    expect(useSessionStore.getState().syncPhase).toBe(SyncPhase.COMPLETE);
+    resetSyncPhase();
+    expect(useSessionStore.getState().syncPhase).toBe(SyncPhase.IDLE);
   });
 });

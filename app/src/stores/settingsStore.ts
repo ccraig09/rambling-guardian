@@ -11,14 +11,14 @@ interface SettingsStore {
   theme: 'light' | 'dark' | 'system';
   minBatteryForRecording: number;
   // Derived from OS on each settings mount — NOT persisted to SQLite
-  notificationPermissionGranted: boolean | null;
+  notificationPermissionStatus: 'granted' | 'denied' | 'undetermined' | null;
   hydrateFromDb: () => Promise<void>;
   setThresholds: (thresholds: AlertThresholds) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   setDailyExerciseTarget: (target: number) => void;
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setMinBatteryForRecording: (value: number) => void;
-  setNotificationPermissionGranted: (granted: boolean | null) => void;
+  setNotificationPermissionStatus: (status: 'granted' | 'denied' | 'undetermined' | null) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -33,7 +33,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   dailyExerciseTarget: 3,
   theme: 'system',
   minBatteryForRecording: 15,
-  notificationPermissionGranted: null,
+  notificationPermissionStatus: null,
 
   hydrateFromDb: async () => {
     const raw = await loadAllSettings();
@@ -114,7 +114,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     saveSetting('minBatteryForRecording', String(value)).catch(console.warn);
   },
 
-  setNotificationPermissionGranted: (granted) => {
-    set({ notificationPermissionGranted: granted });
+  setNotificationPermissionStatus: (status) => {
+    set({ notificationPermissionStatus: status });
   },
 }));

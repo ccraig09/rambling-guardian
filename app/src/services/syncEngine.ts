@@ -18,12 +18,39 @@ import { SyncPhase } from '../types';
 
 const CHECKPOINT_KEY = 'syncCheckpoint';
 
+/** How long COMPLETE/FAILED states remain visible before resetting to IDLE (ms). */
+const TERMINAL_DISPLAY_MS = 3000;
+
+/** Timer handle for the pending reset — allows cancellation if a new sync starts. */
+let resetTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Schedule a reset from a terminal phase (COMPLETE/FAILED) back to IDLE. */
+function schedulePhaseReset(): void {
+  if (resetTimer) clearTimeout(resetTimer);
+  resetTimer = setTimeout(() => {
+    resetTimer = null;
+    const { syncPhase } = useSessionStore.getState();
+    // Only reset if still in a terminal state — a new sync may have started
+    if (syncPhase === SyncPhase.COMPLETE || syncPhase === SyncPhase.FAILED) {
+      useSessionStore.getState().setSyncPhase(SyncPhase.IDLE);
+    }
+  }, TERMINAL_DISPLAY_MS);
+}
+
+/** Immediately reset sync phase to IDLE. Cancels any pending auto-reset. */
+export function resetSyncPhase(): void {
+  if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+  useSessionStore.getState().setSyncPhase(SyncPhase.IDLE);
+}
+
 // -------------------------------------------------------------------
 // Phase transitions
 // -------------------------------------------------------------------
 
 /** Begin a sync cycle. Sets phase to REQUESTING_MANIFEST, marks isSyncing. */
 export async function beginSync(): Promise<void> {
+  // Cancel any pending auto-reset from a previous sync's terminal state
+  if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
   const store = useSessionStore.getState();
   store.setSyncPhase(SyncPhase.REQUESTING_MANIFEST);
   store.setIsSyncing(true);
@@ -52,17 +79,14 @@ export function startFinalizing(): void {
   useSessionStore.getState().setSyncPhase(SyncPhase.FINALIZING);
 }
 
-/**
- * Mark sync as complete. Clears isSyncing, records timestamp.
- * Note: The caller (sync orchestrator) is responsible for resetting
- * syncPhase back to IDLE after the UI has displayed the result.
- */
+/** Mark sync as complete. Clears isSyncing, records timestamp. Auto-resets to IDLE after display. */
 export async function completeSync(): Promise<void> {
   const store = useSessionStore.getState();
   const now = Date.now();
   store.setSyncPhase(SyncPhase.COMPLETE);
   store.setIsSyncing(false);
   store.setLastSyncAt(now);
+  schedulePhaseReset();
 
   const checkpoint = await loadSyncCheckpoint();
   if (checkpoint) {
@@ -70,11 +94,12 @@ export async function completeSync(): Promise<void> {
   }
 }
 
-/** Mark sync as failed. Records error, clears isSyncing. */
+/** Mark sync as failed. Records error, clears isSyncing. Auto-resets to IDLE after display. */
 export async function failSync(error: string): Promise<void> {
   const store = useSessionStore.getState();
   store.setSyncPhase(SyncPhase.FAILED);
   store.setIsSyncing(false);
+  schedulePhaseReset();
 
   const checkpoint = await loadSyncCheckpoint();
   if (checkpoint) {
@@ -93,9 +118,17 @@ export async function loadSyncCheckpoint(): Promise<SyncCheckpoint | null> {
     const raw = settings.get(CHECKPOINT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Basic shape validation
+    // Must have a string deviceCheckpoint to be considered valid at all
     if (typeof parsed.deviceCheckpoint !== 'string') return null;
-    return parsed as SyncCheckpoint;
+    // Normalize all fields to safe defaults — prevents partial JSON from
+    // poisoning sync state (e.g., undefined + 1 → NaN)
+    return {
+      deviceCheckpoint: parsed.deviceCheckpoint,
+      lastSuccessfulSyncAt: typeof parsed.lastSuccessfulSyncAt === 'number' ? parsed.lastSuccessfulSyncAt : 0,
+      lastImportedSessionId: typeof parsed.lastImportedSessionId === 'string' ? parsed.lastImportedSessionId : null,
+      syncAttemptCount: typeof parsed.syncAttemptCount === 'number' && !Number.isNaN(parsed.syncAttemptCount) ? parsed.syncAttemptCount : 0,
+      lastSyncError: typeof parsed.lastSyncError === 'string' ? parsed.lastSyncError : null,
+    };
   } catch {
     return null;
   }

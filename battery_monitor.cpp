@@ -2,9 +2,9 @@
 #include "event_bus.h"
 #include "config.h"
 
-// Battery voltage reading via external voltage divider on GPIO 4 (D3/A2).
-// TODO: Wire 100k/100k voltage divider from battery positive to GPIO 4.
-// Without the divider wired, readings will be 0V or erratic on USB power.
+// Battery voltage reading via 100k/100k voltage divider on GPIO 4 (D3/A2).
+// On USB power without a battery connected, readings will be near 0V — the
+// batteryMonitorUpdate() function skips shutdown logic when voltage < 2.0V.
 
 static unsigned long lastCheck = 0;
 static int batteryPercent = 100;

@@ -180,7 +180,7 @@ export default function SettingsScreen() {
   useEffect(() => {
     const checkPermission = () => {
       getNotificationPermissionStatus().then((status) => {
-        settings.setNotificationPermissionGranted(status === 'granted');
+        settings.setNotificationPermissionStatus(status);
       }).catch(console.warn);
     };
     checkPermission();
@@ -506,7 +506,7 @@ export default function SettingsScreen() {
           <View
             style={[
               styles.settingRow,
-              settings.notificationsEnabled && settings.notificationPermissionGranted === false && {
+              settings.notificationsEnabled && settings.notificationPermissionStatus === 'denied' && {
                 borderBottomWidth: StyleSheet.hairlineWidth,
                 borderBottomColor: theme.colors.elevated,
               },
@@ -526,8 +526,8 @@ export default function SettingsScreen() {
             />
           </View>
 
-          {/* OS permission warning */}
-          {settings.notificationsEnabled && settings.notificationPermissionGranted === false && (
+          {/* OS permission warning — only when explicitly denied, not undetermined */}
+          {settings.notificationsEnabled && settings.notificationPermissionStatus === 'denied' && (
             <Pressable
               onPress={() => Linking.openSettings()}
               style={[styles.settingRow, { gap: 8, paddingVertical: 10 }]}
