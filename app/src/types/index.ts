@@ -21,6 +21,21 @@ export enum AlertModality {
   BOTH = 2,
 }
 
+export enum ConnectionState {
+  IDLE = 'idle',
+  SCANNING = 'scanning',
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  SYNCING = 'syncing',
+  FAILED = 'failed',
+}
+
+export interface SyncMeta {
+  pendingCount: number;
+  isSyncing: boolean;
+  lastSyncAt: number | null; // unix ms
+}
+
 export interface DeviceState {
   alertLevel: AlertLevel;
   speechDuration: number; // ms

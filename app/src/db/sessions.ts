@@ -1,5 +1,19 @@
+/**
+ * Session persistence layer.
+ *
+ * Semantic definitions:
+ * - **Session**: A contiguous BLE connection period. Created on connect, finalized
+ *   on disconnect. Duration = ended_at - started_at.
+ * - **Speaking run (speech segment)**: A contiguous period of speech above the VAD
+ *   threshold. Counted by the device firmware, not the app.
+ * - **Alert event**: A transition to a new (higher) alert level during a session.
+ *   `timestamp` is ms offset from `sessions.started_at`.
+ * - **Manual capture**: A user-triggered voice recording (voice_samples table).
+ *   NOT a session — kept separate.
+ */
+
 import { getDatabase } from './database';
-import type { Session, AlertEvent } from '../types';
+import type { Session, SessionMode, AlertEvent } from '../types';
 import { AlertLevel } from '../types';
 
 /** Start a new session, returns session id */
@@ -95,6 +109,62 @@ export async function getLifetimeStats(): Promise<{
     totalAlerts,
     avgAlertsPer: count > 0 ? Math.round(totalAlerts / count) : 0,
   };
+}
+
+/**
+ * Upsert a session synced from the device via BLE.
+ * Returns `true` if a new row was inserted, `false` if an existing row was updated.
+ */
+export async function upsertDeviceSession(session: {
+  id: string;
+  startedAt: number;
+  endedAt: number | null;
+  durationMs: number;
+  mode: SessionMode;
+  alertCount: number;
+  maxAlert: number;
+  speechSegments: number;
+  sensitivity: number;
+}): Promise<boolean> {
+  const db = await getDatabase();
+  const result = await db.runAsync(
+    `INSERT INTO sessions
+       (id, started_at, ended_at, duration_ms, mode, alert_count, max_alert, speech_segments, sensitivity, synced_from_device)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+     ON CONFLICT(id) DO UPDATE SET
+       ended_at        = COALESCE(excluded.ended_at, sessions.ended_at),
+       duration_ms     = excluded.duration_ms,
+       alert_count     = excluded.alert_count,
+       max_alert       = excluded.max_alert,
+       speech_segments = excluded.speech_segments`,
+    [
+      session.id,
+      session.startedAt,
+      session.endedAt,
+      session.durationMs,
+      session.mode,
+      session.alertCount,
+      session.maxAlert,
+      session.speechSegments,
+      session.sensitivity,
+    ],
+  );
+  // changes === 1 on a fresh insert; on conflict-update changes is also 1,
+  // but lastInsertRowId will be 0 for an update on a TEXT PK table.
+  // Use a simpler heuristic: if the insert's rowid matches, it was new.
+  return result.changes > 0 && result.lastInsertRowId !== 0;
+}
+
+/**
+ * Count sessions that were created locally (not synced from device)
+ * and have been finalized (ended_at IS NOT NULL).
+ */
+export async function getPendingSyncCount(): Promise<number> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM sessions WHERE synced_from_device = 0 AND ended_at IS NOT NULL',
+  );
+  return row?.count ?? 0;
 }
 
 function parseSession(r: any): Session {
