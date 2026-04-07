@@ -356,14 +356,20 @@ void bleOutputUpdate() {
   if (now - lastBleUpdate < BLE_UPDATE_INTERVAL_MS) return;
   lastBleUpdate = now;
 
-  // Periodic updates: speech duration + session stats
+  // Speech duration: every 250ms (BLE_UPDATE_INTERVAL_MS)
   updateSpeechDuration();
 
-  // Battery updates less frequently (piggyback on the 250ms cycle but only update every 60s)
+  // Session stats: every 5s (BLE_STATS_INTERVAL_MS)
+  static unsigned long lastStatsUpdate = 0;
+  if (now - lastStatsUpdate >= BLE_STATS_INTERVAL_MS) {
+    updateSessionStats();
+    lastStatsUpdate = now;
+  }
+
+  // Battery: every 60s (BATTERY_CHECK_INTERVAL_MS)
   static unsigned long lastBatteryUpdate = 0;
   if (now - lastBatteryUpdate >= BATTERY_CHECK_INTERVAL_MS) {
     updateBattery();
-    updateSessionStats();
     lastBatteryUpdate = now;
   }
 }

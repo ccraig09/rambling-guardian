@@ -105,5 +105,6 @@ static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 #define BLE_CHR_MODALITY      "4A980009-1CC4-E7C1-C757-F1267DD021E8"
 #define BLE_CHR_DEVICE_INFO   "4A98000A-1CC4-E7C1-C757-F1267DD021E8"
 #define BLE_UPDATE_INTERVAL_MS 250   // How often to push speech duration updates
+#define BLE_STATS_INTERVAL_MS  5000    // How often to push session stats (5s)
 
 #endif // CONFIG_H
