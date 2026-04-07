@@ -58,7 +58,11 @@
         "transform": {
           "^.+\\.tsx?$": [
             "ts-jest",
-            {}
+            {
+              "tsconfig": {
+                "jsx": "react-jsx"
+              }
+            }
           ]
         },
         "testEnvironment": "node",
