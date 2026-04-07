@@ -11,8 +11,10 @@ import {
   StyleSheet,
   Animated,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/theme/theme';
 import { getSessions, getAlertEvents, getLifetimeStats } from '../../src/db/sessions';
 import type { Session, AlertEvent } from '../../src/types';
@@ -253,6 +255,7 @@ export default function HistoryScreen() {
     avgAlertsPer: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -270,8 +273,16 @@ export default function HistoryScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData]),
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   }, [loadData]);
 
   function handleToggle(id: string) {
@@ -283,6 +294,9 @@ export default function HistoryScreen() {
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.primary[500]} />
+        }
       >
         {/* ── Screen Title ── */}
         <Text style={[theme.type.title, { color: theme.text.primary, marginBottom: theme.spacing.lg }]}>
