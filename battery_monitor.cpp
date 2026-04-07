@@ -42,9 +42,10 @@ void batteryMonitorUpdate() {
   Serial.print(batteryPercent);
   Serial.println("%)");
 
-  // Skip shutdown logic if no battery is wired (voltage near zero on USB power)
+  // No battery wired — USB power only. Set sentinel so BLE sends 255.
   if (voltage < 2.0) {
-    Serial.println("[Battery] No battery detected — skipping shutdown");
+    batteryPercent = -1;
+    Serial.println("[Battery] No battery detected (USB power)");
     return;
   }
 
