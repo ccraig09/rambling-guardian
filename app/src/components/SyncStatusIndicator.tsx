@@ -61,18 +61,8 @@ export default function SyncStatusIndicator() {
     );
   }
 
-  // IDLE — fall back to simple count-based display
-  if (pendingSyncCount > 0) {
-    return (
-      <View style={[styles.pill, { backgroundColor: theme.colors.card, borderRadius: theme.radius.full }]}>
-        <Ionicons name="time-outline" size={14} color={theme.text.muted} />
-        <Text style={[theme.type.small, { color: theme.text.muted }]}>
-          {pendingSyncCount} pending
-        </Text>
-      </View>
-    );
-  }
-
+  // IDLE — only show "Synced" confirmation if a sync completed this session.
+  // Hide pending count — it's internal infrastructure, not actionable by the user.
   if (lastSyncAt !== null) {
     return (
       <View style={[styles.pill, { backgroundColor: theme.colors.card, borderRadius: theme.radius.full }]}>
