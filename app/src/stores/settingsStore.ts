@@ -10,12 +10,15 @@ interface SettingsStore {
   dailyExerciseTarget: number;
   theme: 'light' | 'dark' | 'system';
   minBatteryForRecording: number;
+  // Derived from OS on each settings mount — NOT persisted to SQLite
+  notificationPermissionGranted: boolean | null;
   hydrateFromDb: () => Promise<void>;
   setThresholds: (thresholds: AlertThresholds) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   setDailyExerciseTarget: (target: number) => void;
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setMinBatteryForRecording: (value: number) => void;
+  setNotificationPermissionGranted: (granted: boolean | null) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -30,6 +33,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   dailyExerciseTarget: 3,
   theme: 'system',
   minBatteryForRecording: 15,
+  notificationPermissionGranted: null,
 
   hydrateFromDb: async () => {
     const raw = await loadAllSettings();
@@ -108,5 +112,9 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   setMinBatteryForRecording: (value) => {
     set({ minBatteryForRecording: value });
     saveSetting('minBatteryForRecording', String(value)).catch(console.warn);
+  },
+
+  setNotificationPermissionGranted: (granted) => {
+    set({ notificationPermissionGranted: granted });
   },
 }));

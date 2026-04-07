@@ -8,7 +8,7 @@
  *
  * Offline-safe: all writes go to Zustand first; BLE writes only when connected.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,10 @@ import {
   Switch,
   StyleSheet,
   ActivityIndicator,
+  Linking,
+  AppState,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/theme';
 import { useDeviceState } from '../../src/hooks/useDeviceState';
@@ -26,6 +29,7 @@ import { useSettingsStore } from '../../src/stores/settingsStore';
 import { bleService } from '../../src/services/bleManager';
 import { AlertModality } from '../../src/types';
 import type { AlertThresholds } from '../../src/types';
+import { getNotificationPermissionStatus } from '../../src/services/notifications';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -171,6 +175,20 @@ export default function SettingsScreen() {
   const [localThresholds, setLocalThresholds] = useState<AlertThresholds>(settings.thresholds);
   const [isApplyingThresholds, setIsApplyingThresholds] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
+
+  // Check OS notification permission on mount and when app returns to foreground
+  useEffect(() => {
+    const checkPermission = () => {
+      getNotificationPermissionStatus().then((status) => {
+        settings.setNotificationPermissionGranted(status === 'granted');
+      }).catch(console.warn);
+    };
+    checkPermission();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') checkPermission();
+    });
+    return () => sub.remove();
+  }, []);
 
   // ------------------------------------------------------------------
   // Handlers
@@ -485,7 +503,15 @@ export default function SettingsScreen() {
           </View>
 
           {/* Notifications */}
-          <View style={styles.settingRow}>
+          <View
+            style={[
+              styles.settingRow,
+              settings.notificationsEnabled && settings.notificationPermissionGranted === false && {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.elevated,
+              },
+            ]}
+          >
             <View style={styles.settingLeft}>
               <Text style={[theme.type.body, { color: theme.text.primary }]}>Notifications</Text>
               <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
@@ -499,6 +525,24 @@ export default function SettingsScreen() {
               thumbColor={theme.text.onColor}
             />
           </View>
+
+          {/* OS permission warning */}
+          {settings.notificationsEnabled && settings.notificationPermissionGranted === false && (
+            <Pressable
+              onPress={() => Linking.openSettings()}
+              style={[styles.settingRow, { gap: 8, paddingVertical: 10 }]}
+            >
+              <Ionicons name="warning-outline" size={18} color={theme.semantic.warning} />
+              <Text
+                style={[
+                  theme.type.small,
+                  { color: theme.semantic.warning, flex: 1 },
+                ]}
+              >
+                Notifications are enabled but your iPhone has blocked them. Tap to open Settings.
+              </Text>
+            </Pressable>
+          )}
         </SettingGroup>
 
         {/* ================================================================
