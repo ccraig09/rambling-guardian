@@ -62,11 +62,14 @@ export async function recordAlertEvent(
   );
 }
 
-/** Get all sessions ordered newest first */
+/** Get sessions ordered newest first, excluding reconnect noise. */
 export async function getSessions(limit = 50): Promise<Session[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<any>(
-    'SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?',
+    `SELECT * FROM sessions
+     WHERE ended_at IS NOT NULL
+       AND NOT (duration_ms < 5000 AND speech_segments = 0 AND alert_count = 0)
+     ORDER BY started_at DESC LIMIT ?`,
     [limit],
   );
   return rows.map(parseSession);
@@ -104,7 +107,10 @@ export async function getLifetimeStats(): Promise<{
 }> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<any>(
-    'SELECT COUNT(*) as count, SUM(duration_ms) as total_ms, SUM(alert_count) as total_alerts FROM sessions WHERE ended_at IS NOT NULL',
+    `SELECT COUNT(*) as count, SUM(duration_ms) as total_ms, SUM(alert_count) as total_alerts
+     FROM sessions
+     WHERE ended_at IS NOT NULL
+       AND NOT (duration_ms < 5000 AND speech_segments = 0 AND alert_count = 0)`,
   );
   const count = row?.count ?? 0;
   const totalMs = row?.total_ms ?? 0;
