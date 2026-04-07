@@ -8,11 +8,21 @@ import { useEffect, useState } from 'react';
 import { useDeviceStore } from '../stores/deviceStore';
 import { bleService } from '../services/bleManager';
 import type { DeviceState, SessionStats } from '../types';
+import { ConnectionState } from '../types';
 
 /** Returns reactive device state. Components re-render on any field change. */
 export function useDeviceState(): DeviceState {
-  const { updateDevice, setConnected, reset, ...state } = useDeviceStore();
+  const {
+    updateDevice, setConnected, setConnectionState, setLastDeviceId, reset,
+    connectionState, lastDeviceId,
+    ...state
+  } = useDeviceStore();
   return state;
+}
+
+/** Returns the reactive connection state enum. */
+export function useConnectionState(): ConnectionState {
+  return useDeviceStore((s) => s.connectionState);
 }
 
 /** Returns the latest session stats pushed by the device (null until first notification). */

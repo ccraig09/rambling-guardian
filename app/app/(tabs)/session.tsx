@@ -1,10 +1,9 @@
 /**
  * Session Screen — Real-time BLE dashboard.
  *
- * Disconnected: connection card with scan button.
+ * Disconnected: connection card with scan/reconnect/forget buttons.
  * Connected: live speech timer, alert level meter, session stats, device info.
  */
-import { useState } from 'react';
 import {
   View,
   Text,
@@ -15,9 +14,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/theme';
-import { useDeviceState, useSessionStats } from '../../src/hooks/useDeviceState';
+import { useDeviceState, useSessionStats, useConnectionState } from '../../src/hooks/useDeviceState';
+import { useDeviceStore } from '../../src/stores/deviceStore';
 import { bleService } from '../../src/services/bleManager';
-import { AlertLevel, DeviceMode, AlertModality } from '../../src/types';
+import { AlertLevel, ConnectionState, DeviceMode, AlertModality } from '../../src/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -67,20 +67,38 @@ export default function SessionScreen() {
   const insets = useSafeAreaInsets();
   const deviceState = useDeviceState();
   const sessionStats = useSessionStats();
-
-  const [isScanning, setIsScanning] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const connectionState = useConnectionState();
+  const lastDeviceId = useDeviceStore((s) => s.lastDeviceId);
 
   async function handleConnect() {
-    setIsScanning(true);
-    setConnectionError(null);
     try {
       await bleService.scanAndConnect();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Connection failed';
-      setConnectionError(msg);
-    } finally {
-      setIsScanning(false);
+    } catch {
+      // connectionState is already set to FAILED by bleManager
+    }
+  }
+
+  async function handleReconnect() {
+    try {
+      await bleService.reconnect();
+    } catch {
+      // connectionState is already set to FAILED by bleManager
+    }
+  }
+
+  async function handleDisconnect() {
+    try {
+      await bleService.disconnect();
+    } catch {
+      console.warn('[Session] Disconnect failed');
+    }
+  }
+
+  async function handleForgetDevice() {
+    try {
+      await bleService.forgetDevice();
+    } catch {
+      console.warn('[Session] Forget device failed');
     }
   }
 
@@ -102,75 +120,121 @@ export default function SessionScreen() {
     'hsl(0, 68%, 42%)', // critical — darker red
   ];
 
+  const isBusy = connectionState === ConnectionState.SCANNING || connectionState === ConnectionState.CONNECTING;
+
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.bg, paddingTop: insets.top }]}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Screen title ── */}
+        {/* -- Screen title -- */}
         <Text style={[theme.type.title, { color: theme.text.primary, marginBottom: theme.spacing.lg }]}>
           Session
         </Text>
 
-        {!deviceState.connected ? (
+        {connectionState !== ConnectionState.CONNECTED ? (
           /* ============================================================
-           * DISCONNECTED STATE
+           * DISCONNECTED / SCANNING / CONNECTING / FAILED STATE
            * ============================================================ */
           <View style={[styles.card, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}>
             {/* Dot + heading */}
             <View style={styles.statusRow}>
-              <View style={[styles.dot, { backgroundColor: theme.text.muted }]} />
+              <View style={[styles.dot, {
+                backgroundColor: connectionState === ConnectionState.FAILED
+                  ? theme.semantic.error
+                  : theme.text.muted,
+              }]} />
               <Text style={[theme.type.heading, { color: theme.text.primary }]}>
-                Not Connected
+                {connectionState === ConnectionState.FAILED ? 'Connection Failed' : 'Not Connected'}
               </Text>
             </View>
 
             <Text style={[theme.type.body, { color: theme.text.secondary, marginTop: theme.spacing.sm }]}>
-              Your RamblingGuard device isn't connected.
+              {connectionState === ConnectionState.FAILED
+                ? 'Could not connect to your RamblingGuard device.'
+                : 'Your RamblingGuard device isn\'t connected.'}
             </Text>
 
-            {/* Error message */}
-            {connectionError && (
-              <Text style={[theme.type.small, { color: theme.semantic.error, marginTop: theme.spacing.md }]}>
-                {connectionError}
-              </Text>
-            )}
-
-            {/* Connect / Scanning button */}
+            {/* Primary action button */}
             <Pressable
               onPress={handleConnect}
-              disabled={isScanning}
+              disabled={isBusy}
               style={[
                 styles.primaryButton,
                 {
                   backgroundColor: theme.primary[500],
                   borderRadius: theme.radius.lg,
                   marginTop: theme.spacing.lg,
-                  opacity: isScanning ? 0.7 : 1,
+                  opacity: isBusy ? 0.7 : 1,
                 },
               ]}
             >
-              {isScanning ? (
+              {connectionState === ConnectionState.SCANNING ? (
                 <View style={styles.scanningRow}>
                   <ActivityIndicator color={theme.text.onColor} size="small" />
                   <Text style={[theme.type.subtitle, { color: theme.text.onColor, marginLeft: theme.spacing.sm }]}>
                     Searching for RamblingGuard...
                   </Text>
                 </View>
+              ) : connectionState === ConnectionState.CONNECTING ? (
+                <View style={styles.scanningRow}>
+                  <ActivityIndicator color={theme.text.onColor} size="small" />
+                  <Text style={[theme.type.subtitle, { color: theme.text.onColor, marginLeft: theme.spacing.sm }]}>
+                    Connecting...
+                  </Text>
+                </View>
               ) : (
                 <Text style={[theme.type.subtitle, { color: theme.text.onColor }]}>
-                  {connectionError ? 'Try Again' : 'Connect Device'}
+                  {connectionState === ConnectionState.FAILED ? 'Try Again' : 'Connect Device'}
                 </Text>
               )}
             </Pressable>
+
+            {/* Reconnect button — only when idle with a known device */}
+            {connectionState === ConnectionState.IDLE && lastDeviceId && (
+              <Pressable
+                onPress={handleReconnect}
+                style={[
+                  styles.secondaryButton,
+                  {
+                    borderColor: theme.primary[500],
+                    borderRadius: theme.radius.lg,
+                    marginTop: theme.spacing.sm,
+                  },
+                ]}
+              >
+                <Text style={[theme.type.subtitle, { color: theme.primary[500] }]}>
+                  Reconnect
+                </Text>
+              </Pressable>
+            )}
+
+            {/* Forget Device button — only in FAILED state */}
+            {connectionState === ConnectionState.FAILED && lastDeviceId && (
+              <Pressable
+                onPress={handleForgetDevice}
+                style={[
+                  styles.secondaryButton,
+                  {
+                    borderColor: theme.text.muted,
+                    borderRadius: theme.radius.lg,
+                    marginTop: theme.spacing.sm,
+                  },
+                ]}
+              >
+                <Text style={[theme.type.subtitle, { color: theme.text.muted }]}>
+                  Forget Device
+                </Text>
+              </Pressable>
+            )}
           </View>
         ) : (
           /* ============================================================
            * CONNECTED STATE
            * ============================================================ */
           <>
-            {/* ── Status pill ── */}
+            {/* -- Status pill -- */}
             <View style={[styles.statusPill, { backgroundColor: theme.colors.card, borderRadius: theme.radius.full }]}>
               <View style={[styles.dot, { backgroundColor: theme.alert.safe }]} />
               <Text style={[theme.type.small, { color: theme.text.secondary }]}>
@@ -181,7 +245,7 @@ export default function SessionScreen() {
               </Text>
             </View>
 
-            {/* ── Speech Duration (HERO) ── */}
+            {/* -- Speech Duration (HERO) -- */}
             <View style={styles.heroContainer}>
               <Text style={[theme.type.hero, { color: theme.text.primary, fontSize: 64, letterSpacing: -3 }]}>
                 {formatDuration(deviceState.speechDuration)}
@@ -212,7 +276,7 @@ export default function SessionScreen() {
               </View>
             </View>
 
-            {/* ── Alert Level Meter (4 segments) ── */}
+            {/* -- Alert Level Meter (4 segments) -- */}
             <View style={[styles.meterRow, { marginTop: theme.spacing.lg }]}>
               {segmentColors.map((color, i) => (
                 <View
@@ -230,7 +294,7 @@ export default function SessionScreen() {
               ))}
             </View>
 
-            {/* ── Session Stats Card ── */}
+            {/* -- Session Stats Card -- */}
             <View style={[styles.card, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl, marginTop: theme.spacing.lg }]}>
               <Text style={[theme.type.subtitle, { color: theme.text.primary, marginBottom: theme.spacing.md }]}>
                 Session Stats
@@ -259,7 +323,7 @@ export default function SessionScreen() {
               </View>
             </View>
 
-            {/* ── Device Info Row ── */}
+            {/* -- Device Info Row -- */}
             <View style={[styles.infoRow, { marginTop: theme.spacing.base }]}>
               <Text style={[theme.type.caption, { color: theme.text.muted }]}>
                 Sensitivity: {deviceState.sensitivity}/3
@@ -271,6 +335,23 @@ export default function SessionScreen() {
                 {MODALITY_LABELS[deviceState.modality] ?? 'Unknown'}
               </Text>
             </View>
+
+            {/* -- Disconnect button -- */}
+            <Pressable
+              onPress={handleDisconnect}
+              style={[
+                styles.secondaryButton,
+                {
+                  borderColor: theme.text.muted,
+                  borderRadius: theme.radius.lg,
+                  marginTop: theme.spacing.lg,
+                },
+              ]}
+            >
+              <Text style={[theme.type.subtitle, { color: theme.text.muted }]}>
+                Disconnect
+              </Text>
+            </Pressable>
           </>
         )}
 
@@ -329,6 +410,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
+  },
+  secondaryButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
   },
   scanningRow: {
     flexDirection: 'row',
