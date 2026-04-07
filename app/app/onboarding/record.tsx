@@ -63,7 +63,7 @@ export default function RecordScreen() {
   // Critical battery auto-stop: save recording safely if battery drops below 5%
   useEffect(() => {
     if (state !== 'recording' || !deviceConnected) return;
-    if (deviceBattery < 5) {
+    if (deviceBattery !== null && deviceBattery < 5) {
       clearTimer();
       stopRecording()
         .then((result) => {
@@ -112,7 +112,7 @@ export default function RecordScreen() {
       setAudioLevel(0);
     } else if (state === 'idle' || state === 'error') {
       // Battery guard: don't start recording if device battery is too low
-      if (deviceConnected && deviceBattery < minBattery) {
+      if (deviceConnected && deviceBattery !== null && deviceBattery < minBattery) {
         Alert.alert(
           'Low Battery',
           `Device battery is at ${deviceBattery}%. Recording requires at least ${minBattery}% battery.`,

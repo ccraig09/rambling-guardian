@@ -41,7 +41,7 @@ export interface DeviceState {
   speechDuration: number; // ms
   mode: DeviceMode;
   sensitivity: number; // 0-3
-  battery: number; // 0-100
+  battery: number | null; // 0-100, null = USB power (no battery)
   modality: AlertModality;
   connected: boolean;
 }

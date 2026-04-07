@@ -42,7 +42,8 @@ class BLEService {
   private scanning = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   // Tracks last-known battery level so we can detect threshold crossings
-  private currentBattery = 100;
+  // null = USB power (no battery installed)
+  private currentBattery: number | null = null;
   // Subscription tracking for cleanup
   private subscriptions: { remove: () => void }[] = [];
   // Intentional disconnect flag — suppresses auto-reconnect
@@ -77,8 +78,11 @@ class BLEService {
       const prev = this.currentBattery;
       const next = partial.battery;
       this.currentBattery = next;
-      // Fire once per crossing (prev > 20 and next <= 20), not on every tick
-      if (prev > 20 && next <= 20) {
+      // Skip low-battery check when on USB power (null) — no battery to warn about
+      if (next === null || prev === null) {
+        // noop — can't cross a threshold without real battery values on both sides
+      } else if (prev > 20 && next <= 20) {
+        // Fire once per crossing (prev > 20 and next <= 20), not on every tick
         import('./notifications')
           .then(({ sendLowBatteryNotification }) => {
             sendLowBatteryNotification(next).catch(console.warn);
@@ -251,12 +255,13 @@ class BLEService {
         device.readCharacteristicForService(SERVICE_UUID, CHR.MODALITY),
       ]);
       this.lastBatteryReadAt = Date.now();
+      const rawBattery = batChr.value ? parseUint8(batChr.value) : 0;
       this.updateState({
         alertLevel: alertChr.value ? parseUint8(alertChr.value) : AlertLevel.NONE,
         speechDuration: durChr.value ? parseUint32LE(durChr.value) : 0,
         mode: modeChr.value ? parseUint8(modeChr.value) : DeviceMode.MONITORING,
         sensitivity: sensChr.value ? parseUint8(sensChr.value) : 0,
-        battery: batChr.value ? parseUint8(batChr.value) : 0,
+        battery: rawBattery === 255 ? null : rawBattery,
         modality: modChr.value ? parseUint8(modChr.value) : AlertModality.BOTH,
       });
     } catch (e) {
@@ -285,7 +290,8 @@ class BLEService {
       device.monitorCharacteristicForService(SERVICE_UUID, CHR.BATTERY, (_err, chr) => {
         if (chr?.value) {
           this.lastBatteryReadAt = Date.now();
-          this.updateState({ battery: parseUint8(chr.value) });
+          const raw = parseUint8(chr.value);
+          this.updateState({ battery: raw === 255 ? null : raw });
         }
       }),
     );

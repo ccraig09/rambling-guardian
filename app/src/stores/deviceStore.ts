@@ -16,7 +16,7 @@ const initialState: DeviceState & { connectionState: ConnectionState; lastDevice
   speechDuration: 0,
   mode: DeviceMode.MONITORING,
   sensitivity: 0,
-  battery: 100,
+  battery: null,
   modality: AlertModality.BOTH,
   connected: false,
   connectionState: ConnectionState.IDLE,

@@ -232,16 +232,23 @@ export default function SettingsScreen() {
   // Helpers
   // ------------------------------------------------------------------
 
+  const isUsbPower = deviceState.battery === null;
   const batteryColor =
-    deviceState.battery <= 20 ? theme.semantic.error : theme.semantic.success;
+    deviceState.battery === null
+      ? theme.semantic.success
+      : deviceState.battery <= 20
+        ? theme.semantic.error
+        : theme.semantic.success;
 
   const batteryAge = bleService.getBatteryAge();
   const batteryFresh = batteryAge < 60_000; // less than 1 minute old
-  const batteryAgeLabel = batteryFresh
-    ? 'Live'
-    : batteryAge < Infinity
-      ? `${Math.round(batteryAge / 1000)}s ago`
-      : '';
+  const batteryAgeLabel = isUsbPower
+    ? '' // freshness label not meaningful on USB power
+    : batteryFresh
+      ? 'Live'
+      : batteryAge < Infinity
+        ? `${Math.round(batteryAge / 1000)}s ago`
+        : '';
 
   function segmentStyle(active: boolean) {
     return [
@@ -564,7 +571,9 @@ export default function SettingsScreen() {
             <Text style={[theme.type.body, { color: theme.text.primary }]}>Battery</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={[theme.type.body, { color: deviceState.connected ? batteryColor : theme.text.secondary }]}>
-                {deviceState.connected ? `${deviceState.battery}%` : '—'}
+                {deviceState.connected
+                  ? isUsbPower ? 'USB Power' : `${deviceState.battery}%`
+                  : '—'}
               </Text>
               {deviceState.connected && batteryAgeLabel !== '' && (
                 <Text

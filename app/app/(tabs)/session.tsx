@@ -242,7 +242,7 @@ export default function SessionScreen() {
                 Connected
               </Text>
               <Text style={[theme.type.small, { color: theme.text.muted, marginLeft: theme.spacing.sm }]}>
-                {deviceState.battery}%
+                {deviceState.battery === null ? 'USB' : `${deviceState.battery}%`}
               </Text>
             </View>
 
