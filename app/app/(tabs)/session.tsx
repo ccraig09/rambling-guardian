@@ -307,7 +307,7 @@ export default function SessionScreen() {
               </Text>
               <View style={styles.statsGrid}>
                 <StatItem
-                  label="Speech segments"
+                  label="Speaking runs"
                   value={String(sessionStats?.speechSegments ?? 0)}
                   theme={theme}
                 />

@@ -193,7 +193,7 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
         </Text>
         <Text style={[theme.type.small, { color: theme.text.muted }]}>·</Text>
         <Text style={[theme.type.small, { color: theme.text.secondary }]}>
-          {session.speechSegments} {session.speechSegments === 1 ? 'segment' : 'segments'}
+          {session.speechSegments} {session.speechSegments === 1 ? 'speaking run' : 'speaking runs'}
         </Text>
         <Text style={[theme.type.small, { color: theme.text.muted }]}>·</Text>
         <AlertBadge level={session.maxAlert} theme={theme} />
@@ -306,7 +306,7 @@ export default function HistoryScreen() {
               theme={theme}
             />
             <StatPill
-              label="Alerts avg"
+              label="Avg alerts/session"
               value={lifetimeStats.totalSessions > 0 ? String(lifetimeStats.avgAlertsPer) : '—'}
               theme={theme}
             />
@@ -327,7 +327,7 @@ export default function HistoryScreen() {
               No sessions yet
             </Text>
             <Text style={[theme.type.body, { color: theme.text.muted, textAlign: 'center' }]}>
-              Connect your RamblingGuard device and start talking to record a session.
+              Connect your RamblingGuard device to start tracking your speaking patterns.
             </Text>
           </View>
         ) : (
