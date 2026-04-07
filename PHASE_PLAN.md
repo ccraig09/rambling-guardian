@@ -54,7 +54,7 @@ Living ticket tracker. Check off as completed.
 - [x] RG-C.4.7: Exercise library navigation — category tabs, unlock badges, difficulty legend
 - [x] RG-C.4.8: Recording quality — real audio metering, playback, min duration, re-record
 - [x] RG-C.4.9: Streak calendar polish — plural fix, legend clarity, tappable cells, loading skeleton
-- [ ] RG-C.4.10: Favorites & highly-rated exercises — bookmark/favorite exercises, auto-collect 4-5 star rated, dedicated Favorites section in library for quick access
+- [x] RG-C.4.10: Favorites & highly-rated exercises — bookmark/favorite exercises, auto-collect 4-5 star rated, dedicated Favorites section in library for quick access
 - [ ] ~~RG-C.5~~ → Deferred to Phase D (needs calendar integration + speaker diarization to be useful; manual mode switching is ADHD-hostile)
 - [x] RG-C.10: Notification system (alerts, summaries, coaching, streaks, exercise reminders)
 - [x] RG-C.6: BLE connection + real-time dashboard
@@ -64,18 +64,46 @@ Living ticket tracker. Check off as completed.
 - [x] UI polish pass
 - [x] Run revise-claude-md and commit
 
+### Phase C.11 — Hardening Before AI Coaching (Batch 1 complete)
+
+- [x] RG-C.11.1: Settings persistence — write-through to SQLite, hydration on launch, no flicker
+- [x] RG-C.11.2: BLE lifecycle hardening — explicit ConnectionState (idle/scanning/connecting/connected/syncing/failed), subscription cleanup, reconnect/disconnect/forget-device
+- [x] RG-C.11.3: Sync groundwork — sync metadata in sessionStore, SyncStatusIndicator, "From device" badge, upsert-safe session import
+- [x] RG-C.11.4: Session/history semantics — JSDoc definitions, session type labels, extracted time formatters
+- [x] RG-C.11.5: Calendar layout fix — dynamic cell sizing via useWindowDimensions, works on all iPhone widths
+- [x] RG-C.11.6: Battery safety — recording blocked below threshold, critical-battery auto-stop, min battery setting
+- [x] RG-C.11.7: Tests — 52 tests across 5 files (settings persistence, BLE state, sync replay, timestamps, calendar sizing)
+- [x] RG-C.11.8: UI polish — Alert Style segment widths, sync indicator spacing
+- [x] BLE diagnostic logging (temporary, remove before merge to main)
+- [ ] RG-C.11.9: Notification truth pass (deferred to Batch 2)
+- [ ] RG-C.11.10: Power profiling hooks + test matrix scaffolding (deferred to Batch 2)
+- [ ] RG-C.11.11: README truth pass (deferred to Batch 2)
+- [ ] RG-C.11.12: expo-av → expo-audio migration (before SDK 55)
+- [ ] Run revise-claude-md and commit
+
 ---
 
-## Phase D — Transcription + AI Coaching + Cloud Sync
+## Phase D.0 — Cloud Foundation + Sync Model
 
-- [ ] RG-D.1: Audio streaming via BLE to companion app
+- [ ] RG-D.0.1: Firestore for metadata
+- [ ] RG-D.0.2: Storage for optional audio blobs
+- [ ] RG-D.0.3: Google Drive for archive/export only
+- [ ] RG-D.0.4: Sync checkpoints / watermarks
+- [ ] RG-D.0.5: Retention policy for metadata vs audio
+- [ ] RG-D.0.6: Cloud retry/resume tests
+
+---
+
+## Phase D — Device-First Coaching + Insights
+
+- [ ] RG-D.1: Device-first session segmentation + local backlog
 - [ ] RG-D.2: Real-time transcription + speaker detection
-- [ ] RG-D.3: Live speaker identification + naming
-- [ ] RG-D.4: Claude coaching engine
-- [ ] RG-D.5: "Catch me up" button
-- [ ] RG-D.6: "Draft a question" feature
-- [ ] RG-D.7: Post-session summary + insights
-- [ ] RG-D.8: Google Drive backup + sync
+- [ ] RG-D.3: Voice enrollment + speaker attribution
+- [ ] RG-D.4: Context classification (solo, couple, meeting, presentation, background noise)
+- [ ] RG-D.5: Coaching engine — fillers, pacing, interruption patterns, overlong runs, reflection prompts
+- [ ] RG-D.6: Exercise recommendation engine
+- [ ] RG-D.7: Post-session summaries + insights
+- [ ] RG-D.8: Backup/export flow
 - [ ] Run revise-claude-md and commit
 
 ---
