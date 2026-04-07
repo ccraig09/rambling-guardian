@@ -87,6 +87,62 @@ export interface AlertEvent {
   durationAtAlert: number;
 }
 
+// ============================================
+// Session Model — Two-Level Concept (forward types)
+// ============================================
+
+/**
+ * ConnectionWindow — what the sessions table actually stores today.
+ * A contiguous BLE connection period: created on connect, finalized on disconnect.
+ * Mirrors the Session interface above with an optional future link to ConversationSession.
+ */
+export interface ConnectionWindow extends Session {
+  conversationId: string | null;
+}
+
+/**
+ * ConversationSession — future user-facing concept.
+ * A single conversation may span multiple BLE connection windows
+ * (e.g., reconnect after a dropout). Not persisted yet — defined here
+ * to document the direction and prevent further semantic drift.
+ */
+export interface ConversationSession {
+  id: string;
+  startedAt: number;
+  endedAt: number | null;
+  connectionWindowIds: string[];
+}
+
+// ============================================
+// Sync Types
+// ============================================
+
+export enum SyncPhase {
+  IDLE = 'idle',
+  REQUESTING_MANIFEST = 'requesting_manifest',
+  IMPORTING = 'importing',
+  FINALIZING = 'finalizing',
+  COMPLETE = 'complete',
+  FAILED = 'failed',
+}
+
+/** Manifest describing what the device has available to sync. */
+export interface SyncManifest {
+  pendingSessions: number;
+  pendingAlertEvents: number;
+  deviceCheckpoint: string;
+  estimatedBytes: number;
+}
+
+/** Persistent sync watermark — stored as JSON in the settings table. */
+export interface SyncCheckpoint {
+  deviceCheckpoint: string;
+  lastSuccessfulSyncAt: number;
+  lastImportedSessionId: string | null;
+  syncAttemptCount: number;
+  lastSyncError: string | null;
+}
+
 export interface Exercise {
   id: string;
   category: ExerciseCategory;

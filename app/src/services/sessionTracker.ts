@@ -2,7 +2,10 @@
  * SessionTracker — wires BLE device state to the sessions DB.
  *
  * Subscribes to the Zustand deviceStore (which bleManager keeps in sync).
- * Auto-creates a session when the device connects and finalizes it on disconnect.
+ * Auto-creates a connection window when the device connects and finalizes
+ * it on disconnect. Each row in the sessions table represents one
+ * contiguous BLE connection period (a "connection window"), not a
+ * user-facing conversation (see types/index.ts for the two-level model).
  */
 import { useDeviceStore } from '../stores/deviceStore';
 import { bleService } from './bleManager';
@@ -34,7 +37,7 @@ class SessionTracker {
       const isConnected = state.connected;
 
       if (isConnected && !wasConnected) {
-        // Device just connected — start a new session
+        // Device just connected — start a new connection window
         try {
           this.sessionId = await createSession(state.sensitivity);
           this.sessionStartMs = Date.now();
@@ -48,7 +51,7 @@ class SessionTracker {
       }
 
       if (!isConnected && wasConnected) {
-        // Device disconnected — finalize the session
+        // Device disconnected — finalize the connection window
         const id = this.sessionId;
         this.sessionId = null;
         if (id) {

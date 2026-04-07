@@ -1,13 +1,19 @@
 /**
  * Session persistence layer.
  *
- * Semantic definitions:
- * - **Session**: A contiguous BLE connection period. Created on connect, finalized
- *   on disconnect. Duration = ended_at - started_at.
+ * Two-level model:
+ * - **ConnectionWindow (sessions table)**: What current rows represent — a contiguous
+ *   BLE connection period. Created on connect, finalized on disconnect.
+ *   Duration = ended_at - started_at.
+ * - **ConversationSession (future)**: A user-facing conversation that may span
+ *   multiple connection windows (e.g., reconnect after a BLE dropout).
+ *   Not persisted yet — see types/index.ts for the forward type definition.
+ *
+ * Other definitions:
  * - **Speaking run (speech segment)**: A contiguous period of speech above the VAD
  *   threshold. Counted by the device firmware, not the app.
- * - **Alert event**: A transition to a new (higher) alert level during a session.
- *   `timestamp` is ms offset from `sessions.started_at`.
+ * - **Alert event**: A transition to a new (higher) alert level during a connection
+ *   window. `timestamp` is ms offset from `sessions.started_at`.
  * - **Manual capture**: A user-triggered voice recording (voice_samples table).
  *   NOT a session — kept separate.
  */
