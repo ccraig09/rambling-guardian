@@ -218,6 +218,13 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
         </Text>
         <Text style={[theme.type.small, { color: theme.text.muted }]}>·</Text>
         <AlertBadge level={session.maxAlert} theme={theme} />
+        {session.syncedFromDevice && (
+          <View style={[styles.syncBadge, { backgroundColor: `${theme.primary[500]}22`, borderRadius: theme.radius.full }]}>
+            <Text style={[theme.type.caption, { color: theme.primary[500] }]}>
+              From device
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* ── Expanded: Alert Timeline ── */}
@@ -403,6 +410,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   alertBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  syncBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
   },

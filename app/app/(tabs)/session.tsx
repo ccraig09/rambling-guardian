@@ -18,6 +18,7 @@ import { useDeviceState, useSessionStats, useConnectionState } from '../../src/h
 import { useDeviceStore } from '../../src/stores/deviceStore';
 import { bleService } from '../../src/services/bleManager';
 import { AlertLevel, ConnectionState, DeviceMode, AlertModality } from '../../src/types';
+import SyncStatusIndicator from '../../src/components/SyncStatusIndicator';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -244,6 +245,9 @@ export default function SessionScreen() {
                 {deviceState.battery}%
               </Text>
             </View>
+
+            {/* -- Sync status -- */}
+            <SyncStatusIndicator />
 
             {/* -- Speech Duration (HERO) -- */}
             <View style={styles.heroContainer}>

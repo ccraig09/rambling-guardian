@@ -6,9 +6,10 @@
  */
 import { useDeviceStore } from '../stores/deviceStore';
 import { bleService } from './bleManager';
-import { createSession, finalizeSession, recordAlertEvent } from '../db/sessions';
+import { createSession, finalizeSession, recordAlertEvent, getPendingSyncCount } from '../db/sessions';
 import { AlertLevel } from '../types';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useSessionStore } from '../stores/sessionStore';
 import {
   sendSessionSummaryNotification,
   checkAndSendStreakNotification,
@@ -60,6 +61,9 @@ class SessionTracker {
               this._maxAlert,
               this._speechSegments,
             );
+            // Refresh pending sync count after finalize
+            const pendingCount = await getPendingSyncCount();
+            useSessionStore.getState().setPendingSyncCount(pendingCount);
             // Fire session summary + streak check if notifications are on
             const { notificationsEnabled } = useSettingsStore.getState();
             if (notificationsEnabled) {
