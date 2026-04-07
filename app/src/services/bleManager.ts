@@ -103,7 +103,9 @@ class BLEService {
 
   /** Scan for the RamblingGuard device and connect. */
   async scanAndConnect(): Promise<void> {
+    console.log('[BLE] scanAndConnect called — scanning:', this.scanning, 'device:', !!this.device);
     if (this.scanning) {
+      console.log('[BLE] Already scanning, setting state and returning');
       useDeviceStore.getState().setConnectionState(ConnectionState.SCANNING);
       return;
     }
@@ -114,7 +116,9 @@ class BLEService {
     // Wait for BLE to be powered on (up to 5 s)
     try {
       const bleState = await this.manager.state();
+      console.log('[BLE] Adapter state:', bleState);
       if (bleState !== State.PoweredOn) {
+        console.log('[BLE] Waiting for PoweredOn...');
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(
             () => reject(new Error('Bluetooth not available')),
@@ -130,14 +134,17 @@ class BLEService {
         });
       }
     } catch (e) {
+      console.log('[BLE] Power-on check failed:', e);
       useDeviceStore.getState().setConnectionState(ConnectionState.FAILED);
       throw e;
     }
 
     this.scanning = true;
+    console.log('[BLE] Starting device scan...');
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        console.log('[BLE] Scan timeout (15s) — no device found');
         this.manager.stopDeviceScan();
         this.scanning = false;
         useDeviceStore.getState().setConnectionState(ConnectionState.FAILED);
@@ -149,20 +156,26 @@ class BLEService {
         { allowDuplicates: false },
         async (error, scannedDevice) => {
           if (error) {
+            console.log('[BLE] Scan error:', error.message, 'reason:', error.reason);
             clearTimeout(timeout);
             this.scanning = false;
             useDeviceStore.getState().setConnectionState(ConnectionState.FAILED);
             reject(error);
             return;
           }
+          if (scannedDevice) {
+            console.log('[BLE] Scanned device:', scannedDevice.name, scannedDevice.id);
+          }
           if (scannedDevice?.name?.includes('RamblingGuard')) {
             clearTimeout(timeout);
             this.manager.stopDeviceScan();
             this.scanning = false;
+            console.log('[BLE] Found RamblingGuard! Connecting...');
             try {
               await this.connectToDevice(scannedDevice);
               resolve();
             } catch (e) {
+              console.log('[BLE] connectToDevice failed:', e);
               useDeviceStore.getState().setConnectionState(ConnectionState.FAILED);
               reject(e);
             }
@@ -173,12 +186,16 @@ class BLEService {
   }
 
   private async connectToDevice(device: Device): Promise<void> {
+    console.log('[BLE] connectToDevice — id:', device.id, 'name:', device.name);
     useDeviceStore.getState().setConnectionState(ConnectionState.CONNECTING);
 
     try {
+      console.log('[BLE] Calling device.connect...');
       const connected = await device.connect({ timeout: 10_000 });
+      console.log('[BLE] Connected, discovering services...');
       await connected.discoverAllServicesAndCharacteristics();
       this.device = connected;
+      console.log('[BLE] Services discovered, persisting device ID');
 
       // Persist device ID for reconnect
       const store = useDeviceStore.getState();
@@ -186,7 +203,9 @@ class BLEService {
       saveSetting('lastDeviceId', connected.id).catch(console.warn);
 
       await this.setupPostConnection(connected);
+      console.log('[BLE] Post-connection setup complete');
     } catch (e) {
+      console.log('[BLE] connectToDevice error:', e);
       useDeviceStore.getState().setConnectionState(ConnectionState.FAILED);
       throw e;
     }
@@ -195,14 +214,16 @@ class BLEService {
   /** Shared post-connection setup: disconnect handler, initial reads, subscriptions. */
   private async setupPostConnection(device: Device): Promise<void> {
     // Monitor disconnection -> conditional auto-reconnect
-    device.onDisconnected(() => {
+    device.onDisconnected((error) => {
+      console.log('[BLE] onDisconnected fired — intentional:', this.intentionalDisconnect, 'error:', error?.message ?? 'none');
       this.cleanupSubscriptions();
       this.device = null;
       useDeviceStore.getState().setConnectionState(ConnectionState.IDLE);
       if (!this.intentionalDisconnect) {
+        console.log('[BLE] Scheduling auto-reconnect in 3s');
         this.reconnectTimer = setTimeout(() => {
-          this.reconnect().catch(() => {
-            console.log('[BLE] Auto-reconnect failed');
+          this.reconnect().catch((e) => {
+            console.log('[BLE] Auto-reconnect failed:', e);
           });
         }, 3000);
       }
@@ -330,18 +351,24 @@ class BLEService {
   /** Attempt to reconnect — tries direct connect to last device first, falls back to scan. */
   async reconnect(): Promise<void> {
     const lastId = useDeviceStore.getState().lastDeviceId;
+    console.log('[BLE] reconnect — lastDeviceId:', lastId);
     if (lastId) {
       try {
         useDeviceStore.getState().setConnectionState(ConnectionState.CONNECTING);
+        console.log('[BLE] Trying direct connect to', lastId);
         const device = await this.manager.connectToDevice(lastId, { timeout: 10_000 });
+        console.log('[BLE] Direct connect succeeded, discovering services...');
         await device.discoverAllServicesAndCharacteristics();
         this.device = device;
         await this.setupPostConnection(device);
-      } catch {
+        console.log('[BLE] Reconnect complete');
+      } catch (e) {
+        console.log('[BLE] Direct connect failed:', e, '— falling back to scan');
         // Fall back to full scan
         await this.scanAndConnect();
       }
     } else {
+      console.log('[BLE] No saved device ID, doing full scan');
       await this.scanAndConnect();
     }
   }
