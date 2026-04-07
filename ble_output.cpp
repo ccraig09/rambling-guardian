@@ -61,16 +61,20 @@ class BleServerCallbacks : public NimBLEServerCallbacks {
     clientConnected = true;
     // Request faster connection interval: 15-30ms (units of 1.25ms)
     pServer->updateConnParams(connInfo.getConnHandle(), 12, 24, 0, 200);
-    Serial.println("[BLE] Client connected");
+    Serial.printf("[BLE] Client connected (addr: %s)\n",
+                  connInfo.getAddress().toString().c_str());
     eventBusPublish(EVENT_BLE_CONNECTED, 0);
   }
 
   void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
     clientConnected = false;
-    Serial.printf("[BLE] Client disconnected (reason: %d)\n", reason);
+    Serial.printf("[BLE] Client disconnected (reason: 0x%02X)\n", reason);
     eventBusPublish(EVENT_BLE_DISCONNECTED, 0);
-    // Restart advertising so client can reconnect
+    // Stop-then-start to clear any stale advertising state
+    NimBLEDevice::getAdvertising()->stop();
+    delay(100);  // Allow BLE stack to settle
     NimBLEDevice::startAdvertising();
+    Serial.println("[BLE] Advertising restarted after disconnect");
   }
 };
 
