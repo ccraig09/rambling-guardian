@@ -251,6 +251,13 @@ export default function SessionScreen() {
               <SyncStatusIndicator />
             </View>
 
+            {/* -- Session Info -- */}
+            <View style={[styles.card, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl, marginTop: theme.spacing.md }]}>
+              <Text style={[theme.type.small, { color: theme.text.tertiary, lineHeight: 18 }]}>
+                This session started when you connected. It will save to History when you disconnect or tap End Session below.
+              </Text>
+            </View>
+
             {/* -- Speech Duration (HERO) -- */}
             <View style={styles.heroContainer}>
               <Text style={[theme.type.hero, { color: theme.text.primary, fontSize: 64, letterSpacing: -3 }]}>
@@ -342,22 +349,25 @@ export default function SessionScreen() {
               </Text>
             </View>
 
-            {/* -- Disconnect button -- */}
+            {/* -- End Session button -- */}
             <Pressable
               onPress={handleDisconnect}
               style={[
                 styles.secondaryButton,
                 {
-                  borderColor: theme.text.muted,
+                  borderColor: theme.semantic.error,
                   borderRadius: theme.radius.lg,
                   marginTop: theme.spacing.lg,
                 },
               ]}
             >
-              <Text style={[theme.type.subtitle, { color: theme.text.muted }]}>
-                Disconnect
+              <Text style={[theme.type.subtitle, { color: theme.semantic.error }]}>
+                End Session
               </Text>
             </Pressable>
+            <Text style={[theme.type.caption, { color: theme.text.muted, textAlign: 'center', marginTop: theme.spacing.xs }]}>
+              Saves session to History and disconnects from device
+            </Text>
           </>
         )}
 
