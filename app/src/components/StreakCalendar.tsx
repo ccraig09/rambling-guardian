@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, Animated, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Animated, StyleSheet, useWindowDimensions } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { getStreaksForMonth, getCurrentStreak } from '../db/exercises';
 import type { Streak } from '../types';
@@ -43,12 +43,23 @@ function buildGrid(year: number, month: number): DayCell[] {
   return cells;
 }
 
+const GRID_GAP = 4;
+const COLUMNS = 7;
+
+/** Calculate the cell size that fits exactly 7 columns in the available width. */
+export function calculateCellSize(screenWidth: number, containerPadding = 16, outerPadding = 16): number {
+  const available = screenWidth - (containerPadding + outerPadding) * 2;
+  return Math.floor((available - (COLUMNS - 1) * GRID_GAP) / COLUMNS);
+}
+
 // Skeleton rows/cols for loading state
 const SKELETON_ROWS = 5;
 const SKELETON_COLS = 7;
 
 export function StreakCalendar() {
   const theme = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
+  const cellSize = calculateCellSize(screenWidth);
   const today = todayISO();
   const now = new Date();
 
@@ -234,7 +245,7 @@ export function StreakCalendar() {
         {DAY_LABELS.map((label, i) => (
           <Text
             key={`label-${i}`}
-            style={[theme.type.caption, { color: theme.text.muted, width: 36, textAlign: 'center' }]}
+            style={[theme.type.caption, { color: theme.text.muted, width: cellSize, textAlign: 'center' }]}
           >
             {label}
           </Text>
@@ -250,6 +261,8 @@ export function StreakCalendar() {
               style={[
                 styles.cell,
                 {
+                  width: cellSize,
+                  height: cellSize,
                   backgroundColor: theme.colors.elevated,
                   borderRadius: theme.radius.sm,
                   opacity: pulseAnim,
@@ -271,6 +284,8 @@ export function StreakCalendar() {
                 style={[
                   styles.cell,
                   {
+                    width: cellSize,
+                    height: cellSize,
                     backgroundColor: bgColor,
                     borderRadius: theme.radius.sm,
                     borderWidth: borderColor ? 1.5 : 0,
@@ -380,8 +395,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   cell: {
-    width: 36,
-    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },

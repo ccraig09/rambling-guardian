@@ -17,45 +17,15 @@ import { useTheme } from '../../src/theme/theme';
 import { getSessions, getAlertEvents, getLifetimeStats } from '../../src/db/sessions';
 import type { Session, AlertEvent } from '../../src/types';
 import { AlertLevel } from '../../src/types';
+import { formatSessionDate, formatDuration, formatTotalTime, formatOffset } from '../../src/utils/timeFormat';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatSessionDate(ms: number): string {
-  const d = new Date(ms);
-  const today = new Date();
-  const isToday = d.toDateString() === today.toDateString();
-  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (isToday) return `Today, ${timeStr}`;
-  return (
-    d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) +
-    `, ${timeStr}`
-  );
-}
-
-function formatDuration(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  if (min === 0) return `${sec}s`;
-  return `${min}m ${sec}s`;
-}
-
-function formatTotalTime(ms: number): string {
-  const totalMin = Math.floor(ms / 60000);
-  if (totalMin < 60) return `${totalMin}m`;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
-
-/** Offset from session start in mm:ss format */
-function formatOffset(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min}:${String(sec).padStart(2, '0')}`;
+function getSessionLabel(session: Session): string | null {
+  if (session.syncedFromDevice) return 'Synced from device';
+  return null; // Default sessions don't need a special label
 }
 
 const ALERT_LABELS: Record<number, string> = {
@@ -202,6 +172,15 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
         <Text style={[theme.type.subtitle, { color: theme.text.primary, flex: 1 }]}>
           {formatSessionDate(session.startedAt)}
         </Text>
+        {/* Session type label */}
+        {(() => {
+          const label = getSessionLabel(session);
+          return label ? (
+            <Text style={[theme.type.caption, { color: theme.text.muted, marginLeft: theme.spacing.sm }]}>
+              {label}
+            </Text>
+          ) : null;
+        })()}
         <Text style={[theme.type.caption, { color: expanded ? theme.primary[500] : theme.text.muted }]}>
           {expanded ? 'Collapse' : 'Details'}
         </Text>
@@ -240,6 +219,7 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
               No alerts — clean session.
             </Text>
           ) : (
+            // alert_events.timestamp is ms offset from sessions.started_at
             events.map((event) => (
               <View key={event.id} style={styles.timelineRow}>
                 <Text style={[theme.type.caption, { color: theme.text.muted, width: 44 }]}>
