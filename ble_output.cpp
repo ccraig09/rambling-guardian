@@ -56,14 +56,29 @@ static NimBLECharacteristic* chrDeviceInfo = nullptr;
 // ============================================
 // Server Callbacks
 // ============================================
+
+/** Reset session stats for a fresh connection window. */
+static void resetBleSessionStats() {
+  sessionAlertCount = 0;
+  sessionMaxAlert = 0;
+  sessionSpeechSegments = 0;
+  sessionStartMs = 0;
+}
+
 class BleServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
+    resetBleSessionStats();
     clientConnected = true;
     // Request faster connection interval: 15-30ms (units of 1.25ms)
     pServer->updateConnParams(connInfo.getConnHandle(), 12, 24, 0, 200);
     Serial.printf("[BLE] Client connected (addr: %s)\n",
                   connInfo.getAddress().toString().c_str());
     eventBusPublish(EVENT_BLE_CONNECTED, 0);
+    // Push current battery value immediately so first app read is accurate
+    if (chrBattery) {
+      uint8_t pct = (uint8_t)batteryGetPercent();
+      chrBattery->setValue(pct);
+    }
   }
 
   void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
