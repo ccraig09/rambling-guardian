@@ -84,7 +84,7 @@ Living ticket tracker. Check off as completed.
 - [x] RG-C.11.12: Notification truth pass — removed deprecated shouldShowAlert, OS permission check on mount + foreground, warning row when blocked
 - [x] RG-C.11.13: README truth pass — full rewrite with accurate hardware, features, known limitations
 - [x] RG-C.11.14: UI wording — "speaking runs" (not segments), "Avg alerts/session", honest empty state text
-- [x] RG-C.11.15: Tests — 68 tests across 8 suites (added syncEngine, notifications, extended syncReplay)
+- [x] RG-C.11.15: Tests — 68 tests across 8 passing suites (added syncEngine, notifications, extended syncReplay). Note: theme.test.ts has a pre-existing failure (expo-sqlite ESM import) unrelated to Batch 2.
 
 #### Remaining
 - [ ] RG-C.11.16: expo-av → expo-audio migration (before SDK 55)

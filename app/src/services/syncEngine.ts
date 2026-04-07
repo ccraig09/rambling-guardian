@@ -52,7 +52,11 @@ export function startFinalizing(): void {
   useSessionStore.getState().setSyncPhase(SyncPhase.FINALIZING);
 }
 
-/** Mark sync as complete. Clears isSyncing, records timestamp. */
+/**
+ * Mark sync as complete. Clears isSyncing, records timestamp.
+ * Note: The caller (sync orchestrator) is responsible for resetting
+ * syncPhase back to IDLE after the UI has displayed the result.
+ */
 export async function completeSync(): Promise<void> {
   const store = useSessionStore.getState();
   const now = Date.now();
