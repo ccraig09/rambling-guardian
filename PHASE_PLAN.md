@@ -64,8 +64,9 @@ Living ticket tracker. Check off as completed.
 - [x] UI polish pass
 - [x] Run revise-claude-md and commit
 
-### Phase C.11 — Hardening Before AI Coaching (Batch 1 complete)
+### Phase C.11 — Hardening Before AI Coaching (Batch 1 + Batch 2 complete)
 
+#### Batch 1
 - [x] RG-C.11.1: Settings persistence — write-through to SQLite, hydration on launch, no flicker
 - [x] RG-C.11.2: BLE lifecycle hardening — explicit ConnectionState (idle/scanning/connecting/connected/syncing/failed), subscription cleanup, reconnect/disconnect/forget-device
 - [x] RG-C.11.3: Sync groundwork — sync metadata in sessionStore, SyncStatusIndicator, "From device" badge, upsert-safe session import
@@ -75,10 +76,18 @@ Living ticket tracker. Check off as completed.
 - [x] RG-C.11.7: Tests — 52 tests across 5 files (settings persistence, BLE state, sync replay, timestamps, calendar sizing)
 - [x] RG-C.11.8: UI polish — Alert Style segment widths, sync indicator spacing
 - [x] BLE diagnostic logging (temporary, remove before merge to main)
-- [ ] RG-C.11.9: Notification truth pass (deferred to Batch 2)
-- [ ] RG-C.11.10: Power profiling hooks + test matrix scaffolding (deferred to Batch 2)
-- [ ] RG-C.11.11: README truth pass (deferred to Batch 2)
-- [ ] RG-C.11.12: expo-av → expo-audio migration (before SDK 55)
+
+#### Batch 2
+- [x] RG-C.11.9: Session model correction — ConversationSession/ConnectionWindow forward types, SyncPhase/SyncManifest/SyncCheckpoint types, JSDoc truth pass
+- [x] RG-C.11.10: Sync engine — state machine with explicit phase transitions (REQUESTING_MANIFEST → IMPORTING → FINALIZING → COMPLETE/FAILED), checkpoint persistence in settings table
+- [x] RG-C.11.11: Firmware battery safe-stop — capture_mode subscribes to EVENT_BATTERY_CRITICAL, 2s provisional delay, CLAUDE.md docs
+- [x] RG-C.11.12: Notification truth pass — removed deprecated shouldShowAlert, OS permission check on mount + foreground, warning row when blocked
+- [x] RG-C.11.13: README truth pass — full rewrite with accurate hardware, features, known limitations
+- [x] RG-C.11.14: UI wording — "speaking runs" (not segments), "Avg alerts/session", honest empty state text
+- [x] RG-C.11.15: Tests — 68 tests across 8 suites (added syncEngine, notifications, extended syncReplay)
+
+#### Remaining
+- [ ] RG-C.11.16: expo-av → expo-audio migration (before SDK 55)
 - [ ] Run revise-claude-md and commit
 
 ---
