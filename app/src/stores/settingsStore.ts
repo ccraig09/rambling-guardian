@@ -40,18 +40,19 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
       minBatteryForRecording: number;
     }> = {};
 
-    // Thresholds
-    const g = raw.get('thresholds.gentleSec');
-    const m = raw.get('thresholds.moderateSec');
-    const u = raw.get('thresholds.urgentSec');
-    const c = raw.get('thresholds.criticalSec');
+    const safeInt = (v: string | undefined): number | undefined => {
+      if (v === undefined) return undefined;
+      const n = parseInt(v, 10);
+      return Number.isNaN(n) || n <= 0 ? undefined : n;
+    };
+
+    // Thresholds — only apply if all four parse successfully
+    const g = safeInt(raw.get('thresholds.gentleSec'));
+    const m = safeInt(raw.get('thresholds.moderateSec'));
+    const u = safeInt(raw.get('thresholds.urgentSec'));
+    const c = safeInt(raw.get('thresholds.criticalSec'));
     if (g && m && u && c) {
-      parsed.thresholds = {
-        gentleSec: parseInt(g, 10),
-        moderateSec: parseInt(m, 10),
-        urgentSec: parseInt(u, 10),
-        criticalSec: parseInt(c, 10),
-      };
+      parsed.thresholds = { gentleSec: g, moderateSec: m, urgentSec: u, criticalSec: c };
     }
 
     // Booleans
@@ -59,10 +60,10 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     if (ne !== undefined) parsed.notificationsEnabled = ne === 'true';
 
     // Numbers
-    const det = raw.get('dailyExerciseTarget');
-    if (det !== undefined) parsed.dailyExerciseTarget = parseInt(det, 10);
-    const mbr = raw.get('minBatteryForRecording');
-    if (mbr !== undefined) parsed.minBatteryForRecording = parseInt(mbr, 10);
+    const det = safeInt(raw.get('dailyExerciseTarget'));
+    if (det !== undefined) parsed.dailyExerciseTarget = det;
+    const mbr = safeInt(raw.get('minBatteryForRecording'));
+    if (mbr !== undefined) parsed.minBatteryForRecording = mbr;
 
     // Theme
     const th = raw.get('theme');

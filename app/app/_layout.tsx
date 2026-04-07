@@ -22,6 +22,7 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts(fonts);
   const theme = useTheme();
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
+  const hydrated = useSettingsStore((s) => s._hydrated);
 
   const initDb = () => {
     setDbError(false);
@@ -44,14 +45,16 @@ export default function RootLayout() {
       });
   };
 
-  // Keep the daily reminder in sync whenever the user toggles notifications
+  // Keep the daily reminder in sync whenever the user toggles notifications.
+  // Gate on hydrated to avoid firing with default values before persistence loads.
   useEffect(() => {
+    if (!hydrated) return;
     if (notificationsEnabled) {
       scheduleDailyExerciseReminder(8).catch(console.warn);
     } else {
       cancelDailyExerciseReminder().catch(console.warn);
     }
-  }, [notificationsEnabled]);
+  }, [notificationsEnabled, hydrated]);
 
   useEffect(() => {
     initDb();
