@@ -217,6 +217,14 @@ export default function SettingsScreen() {
   const batteryColor =
     deviceState.battery <= 20 ? theme.semantic.error : theme.semantic.success;
 
+  const batteryAge = bleService.getBatteryAge();
+  const batteryFresh = batteryAge < 60_000; // less than 1 minute old
+  const batteryAgeLabel = batteryFresh
+    ? 'Live'
+    : batteryAge < Infinity
+      ? `${Math.round(batteryAge / 1000)}s ago`
+      : '';
+
   function segmentStyle(active: boolean) {
     return [
       styles.segment,
@@ -441,6 +449,41 @@ export default function SettingsScreen() {
             />
           </View>
 
+          {/* Min Battery for Recording */}
+          <View
+            style={[
+              styles.settingRow,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.elevated,
+              },
+            ]}
+          >
+            <View style={styles.settingLeft}>
+              <Text style={[theme.type.body, { color: theme.text.primary }]}>
+                Min Battery for Recording
+              </Text>
+              <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
+                Device battery threshold to allow recording
+              </Text>
+            </View>
+            <Stepper
+              value={settings.minBatteryForRecording}
+              unit="%"
+              onDecrement={() =>
+                settings.setMinBatteryForRecording(
+                  Math.max(5, settings.minBatteryForRecording - 5),
+                )
+              }
+              onIncrement={() =>
+                settings.setMinBatteryForRecording(
+                  Math.min(30, settings.minBatteryForRecording + 5),
+                )
+              }
+              theme={theme}
+            />
+          </View>
+
           {/* Notifications */}
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
@@ -471,13 +514,29 @@ export default function SettingsScreen() {
             value={deviceState.connected ? 'RamblingGuard' : '—'}
             theme={theme}
           />
-          <InfoRow
-            label="Battery"
-            value={deviceState.connected ? `${deviceState.battery}%` : '—'}
-            valueColor={deviceState.connected ? batteryColor : undefined}
-            theme={theme}
-            isLast
-          />
+          <View
+            style={[styles.row, { minHeight: 50 }]}
+          >
+            <Text style={[theme.type.body, { color: theme.text.primary }]}>Battery</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[theme.type.body, { color: deviceState.connected ? batteryColor : theme.text.secondary }]}>
+                {deviceState.connected ? `${deviceState.battery}%` : '—'}
+              </Text>
+              {deviceState.connected && batteryAgeLabel !== '' && (
+                <Text
+                  style={[
+                    theme.type.small,
+                    {
+                      color: batteryFresh ? theme.semantic.success : theme.text.muted,
+                      fontFamily: theme.fontFamily.semibold,
+                    },
+                  ]}
+                >
+                  {batteryAgeLabel}
+                </Text>
+              )}
+            </View>
+          </View>
         </SettingGroup>
 
         {/* Bottom padding */}
