@@ -1,5 +1,3 @@
-import { getDatabase } from './database';
-
 /**
  * Settings persistence layer.
  *
@@ -7,6 +5,8 @@ import { getDatabase } from './database';
  * read/write helpers. All values are stored as strings — callers are
  * responsible for serialization/deserialization.
  */
+
+import { getDatabase } from './database';
 
 /** Load every setting into a Map. */
 export async function loadAllSettings(): Promise<Map<string, string>> {

@@ -113,7 +113,7 @@ export async function getLifetimeStats(): Promise<{
 
 /**
  * Upsert a session synced from the device via BLE.
- * Returns `true` if a new row was inserted, `false` if an existing row was updated.
+ * Idempotent: safe to replay the same session without duplication.
  */
 export async function upsertDeviceSession(session: {
   id: string;
@@ -125,9 +125,9 @@ export async function upsertDeviceSession(session: {
   maxAlert: number;
   speechSegments: number;
   sensitivity: number;
-}): Promise<boolean> {
+}): Promise<void> {
   const db = await getDatabase();
-  const result = await db.runAsync(
+  await db.runAsync(
     `INSERT INTO sessions
        (id, started_at, ended_at, duration_ms, mode, alert_count, max_alert, speech_segments, sensitivity, synced_from_device)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
@@ -136,7 +136,8 @@ export async function upsertDeviceSession(session: {
        duration_ms     = excluded.duration_ms,
        alert_count     = excluded.alert_count,
        max_alert       = excluded.max_alert,
-       speech_segments = excluded.speech_segments`,
+       speech_segments = excluded.speech_segments,
+       synced_from_device = 1`,
     [
       session.id,
       session.startedAt,
@@ -149,15 +150,12 @@ export async function upsertDeviceSession(session: {
       session.sensitivity,
     ],
   );
-  // changes === 1 on a fresh insert; on conflict-update changes is also 1,
-  // but lastInsertRowId will be 0 for an update on a TEXT PK table.
-  // Use a simpler heuristic: if the insert's rowid matches, it was new.
-  return result.changes > 0 && result.lastInsertRowId !== 0;
 }
 
 /**
- * Count sessions that were created locally (not synced from device)
- * and have been finalized (ended_at IS NOT NULL).
+ * Count finalized local sessions not yet pushed to the device.
+ * Active sessions (ended_at IS NULL) are excluded — they cannot be synced
+ * until finalized.
  */
 export async function getPendingSyncCount(): Promise<number> {
   const db = await getDatabase();
