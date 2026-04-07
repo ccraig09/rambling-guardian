@@ -17,6 +17,7 @@ import type { DeviceState, SessionStats, AlertThresholds } from '../types';
 import { AlertLevel, ConnectionState, DeviceMode, AlertModality } from '../types';
 import { useDeviceStore } from '../stores/deviceStore';
 import { saveSetting } from '../db/settings';
+import { clearSyncCheckpoint } from './syncEngine';
 
 // --- GATT UUIDs ---
 const SERVICE_UUID = '4A980001-1CC4-E7C1-C757-F1267DD021E8';
@@ -378,6 +379,7 @@ class BLEService {
     await this.disconnect();
     useDeviceStore.getState().setLastDeviceId(null);
     saveSetting('lastDeviceId', '').catch(console.warn);
+    clearSyncCheckpoint().catch(console.warn);
   }
 
   /** How stale is the last battery reading (ms). Returns Infinity if never read. */

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Session, SessionMode } from '../types';
+import { SyncPhase } from '../types';
 
 interface SessionStore {
   activeSession: Session | null;
@@ -13,9 +14,11 @@ interface SessionStore {
   pendingSyncCount: number;
   isSyncing: boolean;
   lastSyncAt: number | null;
+  syncPhase: SyncPhase;
   setPendingSyncCount: (count: number) => void;
   setIsSyncing: (syncing: boolean) => void;
   setLastSyncAt: (at: number | null) => void;
+  setSyncPhase: (phase: SyncPhase) => void;
 }
 
 export const useSessionStore = create<SessionStore>((set) => ({
@@ -35,7 +38,9 @@ export const useSessionStore = create<SessionStore>((set) => ({
   pendingSyncCount: 0,
   isSyncing: false,
   lastSyncAt: null,
+  syncPhase: SyncPhase.IDLE,
   setPendingSyncCount: (count) => set({ pendingSyncCount: count }),
   setIsSyncing: (syncing) => set({ isSyncing: syncing }),
   setLastSyncAt: (at) => set({ lastSyncAt: at }),
+  setSyncPhase: (phase) => set({ syncPhase: phase }),
 }));
