@@ -27,6 +27,7 @@ export default function RootLayout() {
     setDbError(false);
     getDatabase()
       .then(() => seedExercises(exerciseData))
+      .then(() => useSettingsStore.getState().hydrateFromDb())
       .then(async () => {
         sessionTracker.start();
         // Request permission then schedule (or skip) the daily reminder
