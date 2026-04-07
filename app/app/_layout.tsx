@@ -19,7 +19,7 @@ import { useSettingsStore } from '../src/stores/settingsStore';
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(false);
-  const [fontsLoaded] = useFonts(fonts);
+  const [fontsLoaded, fontError] = useFonts(fonts);
   const theme = useTheme();
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
   const hydrated = useSettingsStore((s) => s._hydrated);
@@ -79,7 +79,7 @@ export default function RootLayout() {
     );
   }
 
-  if (!dbReady || !fontsLoaded) {
+  if (!dbReady || (!fontsLoaded && !fontError)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg }}>
         <ActivityIndicator size="large" color={theme.primary[500]} />
