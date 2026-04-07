@@ -318,13 +318,13 @@ export default function SettingsScreen() {
                 <View style={styles.segmentGroup}>
                   {[
                     { value: AlertModality.LED_ONLY, label: 'LED' },
-                    { value: AlertModality.VIBRATION_ONLY, label: 'Vibe' },
+                    { value: AlertModality.VIBRATION_ONLY, label: 'Vibrate' },
                     { value: AlertModality.BOTH, label: 'Both' },
                   ].map(({ value, label }) => (
                     <Pressable
                       key={value}
                       onPress={() => handleModalityChange(value)}
-                      style={[segmentStyle(deviceState.modality === value), { paddingHorizontal: 8 }]}
+                      style={[segmentStyle(deviceState.modality === value), styles.segmentWide]}
                     >
                       <Text style={segmentTextStyle(deviceState.modality === value)}>
                         {label}
@@ -584,9 +584,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
   },
-  /** Single segment button — 44dp square */
+  /** Single segment button — 44dp square (for numeric labels) */
   segment: {
     width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /** Wider segment for text labels (LED / Vibrate / Both) */
+  segmentWide: {
+    width: undefined,
+    paddingHorizontal: 14,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',

@@ -247,7 +247,9 @@ export default function SessionScreen() {
             </View>
 
             {/* -- Sync status -- */}
-            <SyncStatusIndicator />
+            <View style={{ marginTop: theme.spacing.sm }}>
+              <SyncStatusIndicator />
+            </View>
 
             {/* -- Speech Duration (HERO) -- */}
             <View style={styles.heroContainer}>
