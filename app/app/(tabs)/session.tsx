@@ -254,7 +254,7 @@ export default function SessionScreen() {
             {/* -- Session Info -- */}
             <View style={[styles.card, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl, marginTop: theme.spacing.md }]}>
               <Text style={[theme.type.small, { color: theme.text.tertiary, lineHeight: 18 }]}>
-                This session started when you connected. It will save to History when you disconnect or tap End Session below.
+                {'This session tracks one connection window. Tap End & Save to save it to History and disconnect.'}
               </Text>
             </View>
 
@@ -362,11 +362,11 @@ export default function SessionScreen() {
               ]}
             >
               <Text style={[theme.type.subtitle, { color: theme.semantic.error }]}>
-                End Session
+                {'End & Save'}
               </Text>
             </Pressable>
             <Text style={[theme.type.caption, { color: theme.text.muted, textAlign: 'center', marginTop: theme.spacing.xs }]}>
-              Saves session to History and disconnects from device
+              Saves this session to History and disconnects
             </Text>
           </>
         )}
