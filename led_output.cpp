@@ -4,7 +4,7 @@
 #include "esp32-hal-rgb-led.h"
 
 static AlertLevel currentAlert = ALERT_NONE;
-static DeviceMode currentMode = MODE_MONITORING;
+static DeviceMode currentMode = MODE_IDLE;
 static AlertModality currentModality = MODALITY_BOTH;
 static uint8_t brightness = LED_BRIGHTNESS_FULL;
 static bool captureActive = false;
@@ -79,16 +79,12 @@ void ledOutputUpdate() {
     return;
   }
 
-  if (currentMode == MODE_PRESENTATION) {
-    float b = breathe();
-    writeLed(0, 0, (uint8_t)(80 * b));
-    return;
-  } else if (currentMode == MODE_DEEP_SLEEP) {
+  if (currentMode == MODE_DEEP_SLEEP) {
     rgbLedWrite(PIN_NEOPIXEL, 0, 0, 0);
     return;
   }
 
-  // Monitoring mode — suppress visual alerts if modality is vibration-only
+  // Active session — suppress visual alerts if modality is vibration-only
   if (currentModality == MODALITY_VIBRATION_ONLY) {
     float b = breathe();
     writeLed(0, (uint8_t)(40 * b), 0);  // Breathing green (no alert colors)

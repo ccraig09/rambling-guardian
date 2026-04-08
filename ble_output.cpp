@@ -20,7 +20,7 @@
 // ============================================
 static bool clientConnected = false;
 static AlertLevel currentAlert = ALERT_NONE;
-static DeviceMode currentMode = MODE_MONITORING;
+static DeviceMode currentMode = MODE_IDLE;
 static AlertModality currentModality = MODALITY_BOTH;
 static uint8_t currentSensitivity = 0;
 static unsigned long lastBleUpdate = 0;
@@ -285,7 +285,7 @@ void bleOutputInit() {
     BLE_CHR_DEVICE_MODE,
     NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY
   );
-  uint8_t initMode = MODE_MONITORING;
+  uint8_t initMode = MODE_IDLE;
   chrDeviceMode->setValue(initMode);
   chrDeviceMode->setCallbacks(&deviceModeCb);
 
