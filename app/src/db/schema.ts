@@ -88,10 +88,12 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
 }
 
 export async function migrateToV2(db: SQLiteDatabase): Promise<void> {
-  // Add trigger_source and session_type columns (D-pre A)
+  // Add trigger_source, session_type, boot_id, device_sequence columns (D-pre A + DpB.5)
   const migrations = [
     `ALTER TABLE sessions ADD COLUMN trigger_source TEXT DEFAULT 'button'`,
     `ALTER TABLE sessions ADD COLUMN session_type TEXT DEFAULT 'active_session'`,
+    `ALTER TABLE sessions ADD COLUMN boot_id INTEGER`,
+    `ALTER TABLE sessions ADD COLUMN device_sequence INTEGER`,
   ];
 
   for (const sql of migrations) {

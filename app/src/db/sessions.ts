@@ -137,19 +137,23 @@ export async function upsertDeviceSession(session: {
   maxAlert: number;
   speechSegments: number;
   sensitivity: number;
+  bootId?: number;
+  deviceSequence?: number;
 }): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
     `INSERT INTO sessions
-       (id, started_at, ended_at, duration_ms, mode, alert_count, max_alert, speech_segments, sensitivity, synced_from_device)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+       (id, started_at, ended_at, duration_ms, mode, alert_count, max_alert, speech_segments, sensitivity, synced_from_device, boot_id, device_sequence)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        ended_at        = COALESCE(excluded.ended_at, sessions.ended_at),
        duration_ms     = excluded.duration_ms,
        alert_count     = excluded.alert_count,
        max_alert       = excluded.max_alert,
        speech_segments = excluded.speech_segments,
-       synced_from_device = 1`,
+       synced_from_device = 1,
+       boot_id         = COALESCE(excluded.boot_id, sessions.boot_id),
+       device_sequence = COALESCE(excluded.device_sequence, sessions.device_sequence)`,
     [
       session.id,
       session.startedAt,
@@ -160,6 +164,8 @@ export async function upsertDeviceSession(session: {
       session.maxAlert,
       session.speechSegments,
       session.sensitivity,
+      session.bootId ?? null,
+      session.deviceSequence ?? null,
     ],
   );
 }
