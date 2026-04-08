@@ -273,7 +273,7 @@ class BLEService {
       this.updateState({
         alertLevel: alertChr.value ? parseUint8(alertChr.value) : AlertLevel.NONE,
         speechDuration: durChr.value ? parseUint32LE(durChr.value) : 0,
-        mode: modeChr.value ? parseUint8(modeChr.value) : DeviceMode.MONITORING,
+        mode: modeChr.value ? parseUint8(modeChr.value) : DeviceMode.IDLE,
         sensitivity: sensChr.value ? parseUint8(sensChr.value) : 0,
         battery: rawBattery === null || rawBattery === 255 ? null : rawBattery,
         modality: modChr.value ? parseUint8(modChr.value) : AlertModality.BOTH,
