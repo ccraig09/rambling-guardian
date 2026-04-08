@@ -10,6 +10,7 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Alert,
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -87,12 +88,25 @@ export default function SessionScreen() {
     }
   }
 
-  async function handleDisconnect() {
-    try {
-      await bleService.disconnect();
-    } catch {
-      console.warn('[Session] Disconnect failed');
-    }
+  function handleEndSession() {
+    Alert.alert(
+      'End & Save Session?',
+      'This will save the current session to History and disconnect from your device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'End & Save',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await bleService.disconnect();
+            } catch {
+              console.warn('[Session] Disconnect failed');
+            }
+          },
+        },
+      ],
+    );
   }
 
   async function handleForgetDevice() {
@@ -351,7 +365,7 @@ export default function SessionScreen() {
 
             {/* -- End Session button -- */}
             <Pressable
-              onPress={handleDisconnect}
+              onPress={handleEndSession}
               style={[
                 styles.secondaryButton,
                 {
