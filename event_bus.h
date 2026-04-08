@@ -29,6 +29,7 @@ enum EventType {
   EVENT_SESSION_STOP_REQUESTED,   // Trigger wants to stop session (payload: TriggerSource)
   EVENT_SESSION_STARTED,          // Session confirmed active (payload: TriggerSource)
   EVENT_SESSION_STOPPED,          // Session confirmed ended (payload: TriggerSource)
+  EVENT_STORAGE_LOW,              // SD storage below threshold (payload: free KB)
   EVENT_COUNT                  // Total number of event types
 };
 
