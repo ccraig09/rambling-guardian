@@ -161,6 +161,36 @@ export interface SyncCheckpoint {
   lastSyncError: string | null;
 }
 
+// ============================================
+// Sync Status + Retention Types (D.0)
+// ============================================
+
+/** Per-session sync pipeline position. NULL for local sessions. */
+export type SyncStatus = 'pending' | 'received' | 'processed' | 'acked' | 'committed' | 'failed';
+
+/** Retention tier — determines auto-prune behavior. */
+export enum RetentionTier {
+  /** Session metadata only — kept forever */
+  METADATA = 1,
+  /** Transcript + timestamps — kept indefinitely (manual delete only) */
+  TRANSCRIPT = 2,
+  /** Alert-moment audio clips — auto-pruned after configurable window (default 30 days) */
+  ALERT_CLIPS = 3,
+  /** Full session audio — auto-pruned after configurable window (default 7 days) */
+  FULL_AUDIO = 4,
+}
+
+/** Sync info for a session — used by checkpoint service queries. */
+export interface SessionSyncInfo {
+  id: string;
+  syncStatus: SyncStatus | null;
+  receivedAt: number | null;
+  processedAt: number | null;
+  committedAt: number | null;
+  bootId: number | null;
+  deviceSequence: number | null;
+}
+
 export interface Exercise {
   id: string;
   category: ExerciseCategory;

@@ -111,3 +111,29 @@ export async function migrateToV2(db: SQLiteDatabase): Promise<void> {
     }
   }
 }
+
+export async function migrateToV3(db: SQLiteDatabase): Promise<void> {
+  const migrations = [
+    `ALTER TABLE sessions ADD COLUMN sync_status TEXT`,
+    `ALTER TABLE sessions ADD COLUMN received_at INTEGER`,
+    `ALTER TABLE sessions ADD COLUMN processed_at INTEGER`,
+    `ALTER TABLE sessions ADD COLUMN committed_at INTEGER`,
+    `ALTER TABLE sessions ADD COLUMN retention_tier INTEGER DEFAULT 1`,
+    `ALTER TABLE sessions ADD COLUMN retention_until INTEGER`,
+  ];
+
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch (e: any) {
+      if (!e.message?.includes('duplicate column')) {
+        throw e;
+      }
+    }
+  }
+
+  // Backfill: device-synced sessions get sync_status = 'committed'
+  await db.execAsync(
+    `UPDATE sessions SET sync_status = 'committed', committed_at = ended_at WHERE synced_from_device = 1 AND sync_status IS NULL`,
+  );
+}
