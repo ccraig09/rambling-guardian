@@ -51,6 +51,14 @@ Debug serial prints are gated by `#define DEBUG_AUDIO` in config.h (commented ou
 VAD auto-calibrates on boot (~6s): 5 warmup + 30 measurement windows × 200ms. Serial: `[Audio] Calibrated: ambient=XX, threshold=YY`
 Sensitivity levels (0–3) apply multipliers { 1, 2, 4, 8 } on calibrated baseline. Threshold capped at 80 — safe to boot mid-meeting.
 
+### Standalone Backlog (Phase D-pre B)
+**Metadata-first standalone persistence.** Session metadata (timestamps, alerts, speech segments, trigger source) persists to SD for later sync — not audio, not transcripts.
+Boot-relative timestamps: `bootId` (monotonic counter in `/RG/boot_id.bin`) + `deviceSessionSequence` + `millis()` offsets. Phone anchors wall-clock per-boot on BLE connect.
+Backlog file: versioned `/RG/backlog.bin` with 16-byte header ("RGBL" magic, version, recordSize) and 32-byte `SessionRecord` structs. Max 128 in-memory. Corruption → .bak rename + fresh file. Compaction when >100 records and >50% synced.
+BLE sync: `4A98000C` (SYNC_DATA) — manifest(0x01)/request(0x02)/ack(0x03)/commit(0x04) protocol. Replay-safe via (bootId, sequence) pairs. Idempotent imports on app side. Partial success is normal.
+No-SD graceful degradation: session runs, BLE live stats work, backlog skipped. Unwritten data is lost on power-off — no false recovery promises.
+Build size after D-pre B: 737KB flash (22%), 48KB RAM (14%).
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 
@@ -125,6 +133,7 @@ npx expo install @expo/vector-icons               # add icons (not auto-included
 - **Skeleton loaders**: use `Animated.loop` opacity pulse instead of `ActivityIndicator` for initial loads
 - **BLE GATT UUIDs**: `4A980001–4A98000B` (service + 10 characteristics) — see `config.h`
 - **BLE Session Control**: `4A98000B` — Read+Write+Notify. Write 0x01=start session, 0x02=stop. Read/Notify: 0x00=idle, 0x01=active.
+- **BLE Sync Data**: `4A98000C` — Read+Write+Notify. Backlog sync protocol: 0x01=manifest, 0x02=next record, 0x03=ack, 0x04=commit.
 - **PAUSE_THRESHOLD_MS**: 3000ms (tuned on device — 1200ms too sensitive, 5000ms too slow)
 
 ## IDE / Tooling Notes
@@ -149,8 +158,10 @@ npx expo install @expo/vector-icons               # add icons (not auto-included
 | sd_card | Y | N | Init-only, exposes sdCardIsReady() utility |
 | wav_writer | N | N | Utility API — open/write/close, called by capture_mode |
 | capture_mode | Y | Y | State machine (IDLE/RECORDING), feeds audio to wav_writer |
-| session_logger | Y | N | Event subscriber, accumulates stats, flush-on-demand to CSV |
-| vibration_output | Y | Y | Event subscriber, PWM patterns per alert level, modality-aware |
+| session_logger | Y | N | Event subscriber, accumulates stats, appends to backlog on SESSION_STOPPED |
+| vibration_output | Y | Y | Event subscriber, PWM patterns per alert level + session confirmation haptics |
+| boot_state | Y | N | Persists monotonic boot ID to SD, tracks per-boot session sequence |
+| backlog | Y | N | Versioned binary backlog (32-byte records), in-memory cache, compaction, sync checkpoint |
 
 ## Non-Negotiables
 - Every task gets a git commit with conventional commit message

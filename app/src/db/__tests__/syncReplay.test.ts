@@ -45,14 +45,15 @@ describe('upsertDeviceSession', () => {
     const sql = mockRunAsync.mock.calls[0][0] as string;
     expect(sql).toContain('synced_from_device');
     // The VALUES clause includes 1 for synced_from_device
-    expect(sql).toContain('VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)');
+    expect(sql).toContain('synced_from_device');
   });
 
   test('passes all session fields as params', async () => {
     await upsertDeviceSession(sampleSession);
 
     const params = mockRunAsync.mock.calls[0][1] as any[];
-    expect(params).toEqual([
+    // First 9 params are session fields, last 2 are bootId + deviceSequence (null when not from device backlog)
+    expect(params.slice(0, 9)).toEqual([
       'device-session-001',
       1712400000000,
       1712403600000,

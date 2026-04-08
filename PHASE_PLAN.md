@@ -115,18 +115,18 @@ Living ticket tracker. Check off as completed.
 ## Phase D-pre B — Standalone Backlog Foundation
 
 ### Firmware
-- [ ] RG-DpB.1: Boot ID persistence — /RG/boot_id.bin with magic + monotonic counter, increment on each boot
-- [ ] RG-DpB.2: Backlog file — versioned /RG/backlog.bin with header (magic "RGBL", version, recordSize, recordCount), 32-byte SessionRecord with bootId + deviceSessionSequence + boot-relative timestamps
-- [ ] RG-DpB.3: Backlog operations — append on SESSION_STOPPED, corruption detection + .bak rename, compaction when >100 records and >50% synced, storage-full handling (EVENT_STORAGE_LOW, skip write, session still runs), no-SD-card graceful degradation
-- [ ] RG-DpB.4: BLE sync transport — add CHR_SYNC_DATA (4A98000C), manifest/request/ack/commit protocol with replay-safe (bootId, sequence) IDs
+- [x] RG-DpB.1: Boot ID persistence — /RG/boot_id.bin with magic + monotonic counter, increment on each boot
+- [x] RG-DpB.2: Backlog file — versioned /RG/backlog.bin with header (magic "RGBL", version, recordSize, recordCount), 32-byte SessionRecord with bootId + deviceSessionSequence + boot-relative timestamps
+- [x] RG-DpB.3: Backlog operations — append on SESSION_STOPPED, corruption detection + .bak rename, compaction when >100 records and >50% synced, storage-full handling (EVENT_STORAGE_LOW, skip write, session still runs), no-SD-card graceful degradation
+- [x] RG-DpB.4: BLE sync transport — add CHR_SYNC_DATA (4A98000C), manifest/request/ack/commit protocol with replay-safe (bootId, sequence) IDs
 
 ### App
-- [ ] RG-DpB.5: Sync transport — new syncTransport.ts wiring BLE protocol into existing syncEngine scaffold, idempotent upsert keyed on (bootId, sequence), handles lost ack / failed commit / partial success
-- [ ] RG-DpB.6: Schema + timestamp anchoring — boot_id/device_sequence columns, per-boot time offset calculation on BLE connect, best-effort wall-clock for cross-boot sessions
-- [ ] RG-DpB.7: Transcript/retention placeholders — transcript, transcript_timestamps, audio_retention columns (empty for now, Phase D populates)
+- [x] RG-DpB.5: Sync transport — new syncTransport.ts wiring BLE protocol into existing syncEngine scaffold, idempotent upsert keyed on (bootId, sequence), handles lost ack / failed commit / partial success
+- [x] RG-DpB.6: Schema + timestamp anchoring — boot_id/device_sequence columns, per-boot time offset calculation on BLE connect, best-effort wall-clock for cross-boot sessions
+- [x] RG-DpB.7: Transcript/retention placeholders — transcript, transcript_timestamps, audio_retention columns (empty for now, Phase D populates)
 
 ### Quality
-- [ ] RG-DpB.8: Tests + docs — firmware backlog smoke tests, app sync tests (idempotent import, partial sync, cross-boot), update CLAUDE.md
+- [x] RG-DpB.8: Tests + docs — firmware compiles (737KB/48KB), TypeScript passes, 76 tests pass (8 suites), CLAUDE.md + PHASE_PLAN.md updated
 
 ### Investigation (parallel, non-blocking)
 - [ ] RG-INV.1: Apple Watch shortcut feasibility — Shortcut→app intent→BLE write path, background BLE behavior, latency measurement, written findings doc only
