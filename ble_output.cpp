@@ -10,7 +10,7 @@
 #define CONFIG_BT_NIMBLE_ROLE_CENTRAL_DISABLED
 #define CONFIG_BT_NIMBLE_ROLE_OBSERVER_DISABLED
 #define CONFIG_BT_NIMBLE_MAX_BONDS 1
-#define CONFIG_BT_NIMBLE_MAX_CCCDS 10   // We have 9 characteristics, some with CCCD
+#define CONFIG_BT_NIMBLE_MAX_CCCDS 12   // 10 characteristics with CCCD
 #define CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE 3072
 
 #include <NimBLEDevice.h>
@@ -52,6 +52,7 @@ static NimBLECharacteristic* chrSessionStats = nullptr;
 static NimBLECharacteristic* chrThresholds = nullptr;
 static NimBLECharacteristic* chrModality = nullptr;
 static NimBLECharacteristic* chrDeviceInfo = nullptr;
+static NimBLECharacteristic* chrSessionCtrl = nullptr;
 
 // ============================================
 // Server Callbacks
@@ -67,7 +68,6 @@ static void resetBleSessionStats() {
 
 class BleServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
-    resetBleSessionStats();
     clientConnected = true;
     // Request faster connection interval: 15-30ms (units of 1.25ms)
     pServer->updateConnParams(connInfo.getConnHandle(), 12, 24, 0, 200);
@@ -78,6 +78,11 @@ class BleServerCallbacks : public NimBLEServerCallbacks {
     if (chrBattery) {
       uint8_t pct = (uint8_t)batteryGetPercent();
       chrBattery->setValue(pct);
+    }
+    // Push current session state so app knows if device has an active session
+    if (chrSessionCtrl) {
+      uint8_t sessionState = (currentMode == MODE_ACTIVE_SESSION) ? 0x01 : 0x00;
+      chrSessionCtrl->setValue(sessionState);
     }
   }
 
@@ -113,9 +118,16 @@ class DeviceModeWriteCallback : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic* pChr, NimBLEConnInfo& connInfo) override {
     uint8_t val = pChr->getValue<uint8_t>();
     if (val <= MODE_DEEP_SLEEP) {
-      currentMode = (DeviceMode)val;
-      eventBusPublish(EVENT_MODE_CHANGED, val);
-      Serial.printf("[BLE] Mode set to %d\n", val);
+      // Route session-related mode changes through the session lifecycle
+      if (val == MODE_ACTIVE_SESSION) {
+        eventBusPublish(EVENT_SESSION_START_REQUESTED, (int)TRIGGER_BLE_COMMAND);
+      } else if (val == MODE_IDLE) {
+        eventBusPublish(EVENT_SESSION_STOP_REQUESTED, (int)TRIGGER_BLE_COMMAND);
+      } else {
+        // Deep sleep and other modes: direct mode change
+        eventBusPublish(EVENT_MODE_CHANGED, val);
+      }
+      Serial.printf("[BLE] Mode write: %d\n", val);
     }
   }
 };
@@ -155,10 +167,26 @@ class ModalityWriteCallback : public NimBLECharacteristicCallbacks {
   }
 };
 
+class SessionCtrlWriteCallback : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* pChr, NimBLEConnInfo& connInfo) override {
+    uint8_t val = pChr->getValue<uint8_t>();
+    if (val == 0x01) {
+      // Start session request
+      eventBusPublish(EVENT_SESSION_START_REQUESTED, (int)TRIGGER_BLE_COMMAND);
+      Serial.println("[BLE] Session start requested");
+    } else if (val == 0x02) {
+      // Stop session request
+      eventBusPublish(EVENT_SESSION_STOP_REQUESTED, (int)TRIGGER_BLE_COMMAND);
+      Serial.println("[BLE] Session stop requested");
+    }
+  }
+};
+
 static SensitivityWriteCallback sensitivityCb;
 static DeviceModeWriteCallback deviceModeCb;
 static ThresholdsWriteCallback thresholdsCb;
 static ModalityWriteCallback modalityCb;
+static SessionCtrlWriteCallback sessionCtrlCb;
 
 // ============================================
 // Event Bus Callbacks
@@ -205,6 +233,27 @@ static void onSensitivityChanged(EventType event, int payload) {
   if (clientConnected && chrSensitivity) {
     uint8_t val = (uint8_t)payload;
     chrSensitivity->setValue(val);
+  }
+}
+
+static void onSessionStarted(EventType event, int payload) {
+  resetBleSessionStats();
+  sessionStartMs = millis();
+
+  // Update SESSION_CTRL characteristic to reflect active state
+  if (clientConnected && chrSessionCtrl) {
+    uint8_t val = 0x01;
+    chrSessionCtrl->setValue(val);
+    chrSessionCtrl->notify();
+  }
+}
+
+static void onSessionStopped(EventType event, int payload) {
+  // Update SESSION_CTRL characteristic to reflect idle state
+  if (clientConnected && chrSessionCtrl) {
+    uint8_t val = 0x00;
+    chrSessionCtrl->setValue(val);
+    chrSessionCtrl->notify();
   }
 }
 
@@ -341,7 +390,16 @@ void bleOutputInit() {
     BLE_CHR_DEVICE_INFO,
     NIMBLE_PROPERTY::READ
   );
-  chrDeviceInfo->setValue("RG v1.0 PhaseC");
+  chrDeviceInfo->setValue("RG v2.0 PhaseDpreA");
+
+  // Session Control (Read + Write + Notify) — v1 minimal: 0x00=idle, 0x01=active
+  chrSessionCtrl = pService->createCharacteristic(
+    BLE_CHR_SESSION_CTRL,
+    NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY
+  );
+  uint8_t initSessionCtrl = 0x00;  // starts idle
+  chrSessionCtrl->setValue(initSessionCtrl);
+  chrSessionCtrl->setCallbacks(&sessionCtrlCb);
 
   // Start service
   pService->start();
@@ -360,6 +418,8 @@ void bleOutputInit() {
   eventBusSubscribe(EVENT_SPEECH_ENDED, onSpeechEvent);
   eventBusSubscribe(EVENT_MODALITY_CHANGED, onModalityChanged);
   eventBusSubscribe(EVENT_SENSITIVITY_CHANGED, onSensitivityChanged);
+  eventBusSubscribe(EVENT_SESSION_STARTED, onSessionStarted);
+  eventBusSubscribe(EVENT_SESSION_STOPPED, onSessionStopped);
 
   Serial.println("[BLE] GATT server started, advertising as " BLE_DEVICE_NAME);
 }
