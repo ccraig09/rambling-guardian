@@ -185,6 +185,7 @@ Living ticket tracker. Check off as completed.
 
 Deferred improvements to revisit after all phases ship.
 
+- [ ] VAD hybrid calibration strategy — current full recalibration (~6s) on every session start is too slow for daily wearable UX. Replace with: full calibration at boot only, short quick-check (~0.5s) on session start, cached baseline reuse when ambient is stable, full recal fallback only when conditions changed significantly. Discovered during D-pre A live testing.
 - [ ] Dedicated Favorites screen — currently favorites are an inline section in the exercises scroll, easy to miss; needs its own tab or prominent entry point
 - [ ] Exercise search/filter — search by name, filter by duration, difficulty
 - [ ] Onboarding walkthrough — first-launch guided tour explaining device vs exercises vs voice enrollment

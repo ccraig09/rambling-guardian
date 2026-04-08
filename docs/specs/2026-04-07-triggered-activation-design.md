@@ -95,6 +95,8 @@ Future phases may add an interrupt pattern (pause session → note → resume) o
 - Haptic: 100ms vibration pulse
 - BLE: notify SESSION_CTRL characteristic → 0x01
 
+**Known follow-up: VAD recalibration latency.** Currently, `audioInputResume()` runs a full VAD calibration (~6s: 5 warmup + 30 measurement windows) every time a session starts. This is a safety-first approach for v1 — ensures the threshold adapts to the current environment. However, it adds noticeable delay to session start and can produce a poor baseline if the user starts speaking during calibration. Future improvement: hybrid calibration (full at boot, short quick-check on session start, cached baseline reuse when ambient is stable). See PHASE_PLAN.md Post-Launch tasks.
+
 ### 4.2 Session Stop
 - LED: green → dim white pulse
 - Haptic: two short 50ms pulses
