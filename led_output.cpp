@@ -8,6 +8,9 @@ static DeviceMode currentMode = MODE_IDLE;
 static AlertModality currentModality = MODALITY_BOTH;
 static uint8_t brightness = LED_BRIGHTNESS_FULL;
 static bool captureActive = false;
+static bool storageLow = false;
+static bool storageLowFlash = false;
+static unsigned long storageLowFlashStart = 0;
 
 // Animation rate-limiting
 static unsigned long lastLedUpdate = 0;
@@ -48,6 +51,18 @@ static void onCaptureStopped(EventType event, int payload) {
   captureActive = false;
 }
 
+static void onStorageLow(EventType event, int payload) {
+  storageLow = true;
+  Serial.printf("[LED] Storage low warning (%d KB free)\n", payload);
+}
+
+static void onSessionStartedLed(EventType event, int payload) {
+  if (storageLow) {
+    storageLowFlash = true;
+    storageLowFlashStart = millis();
+  }
+}
+
 // Smooth breathing effect — returns multiplier 0.0-1.0
 static float breathe() {
   unsigned long now = millis();
@@ -64,6 +79,8 @@ void ledOutputInit() {
   eventBusSubscribe(EVENT_BATTERY_LOW, onBatteryLow);
   eventBusSubscribe(EVENT_CAPTURE_STARTED, onCaptureStarted);
   eventBusSubscribe(EVENT_CAPTURE_STOPPED, onCaptureStopped);
+  eventBusSubscribe(EVENT_STORAGE_LOW, onStorageLow);
+  eventBusSubscribe(EVENT_SESSION_STARTED, onSessionStartedLed);
 
   Serial.println("[LED] NeoPixel initialized");
 }
@@ -77,6 +94,18 @@ void ledOutputUpdate() {
   if (captureActive) {
     writeLed(255, 0, 255);
     return;
+  }
+
+  // Storage-low warning flash: brief orange blink before green transition
+  if (storageLowFlash) {
+    unsigned long flashElapsed = now - storageLowFlashStart;
+    if (flashElapsed < 300) {
+      rgbLedWrite(PIN_NEOPIXEL, 255, 100, 0);
+      return;
+    } else {
+      storageLowFlash = false;
+      // Fall through to normal mode handling
+    }
   }
 
   // IDLE mode: dim white pulse every 5 seconds (MacBook sleep-light)

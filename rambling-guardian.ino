@@ -15,6 +15,8 @@
 #include "session_logger.h"
 #include "vibration_output.h"
 #include "ble_output.h"
+#include "boot_state.h"
+#include "backlog.h"
 
 void setup() {
   Serial.begin(115200);
@@ -30,6 +32,8 @@ void setup() {
   modeManagerInit();
   batteryMonitorInit();
   sdCardInit();
+  bootStateInit();     // Must be after sdCardInit()
+  backlogInit();       // Must be after bootStateInit()
   captureModeInit();
   sessionLoggerInit();
   vibrationOutputInit();
