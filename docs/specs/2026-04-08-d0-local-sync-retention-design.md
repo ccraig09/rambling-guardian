@@ -49,14 +49,14 @@ ALTER TABLE sessions ADD COLUMN retention_until INTEGER;
 - `committed_at` — when device confirmed
 
 **Retention columns:**
-- `retention_tier` — which tier (1–4) governs this session, default 1 (metadata)
+- `retention_tier` — current effective tier (1–4) for this session, default 1 (metadata). Represents the highest artifact tier currently attached. Note: a single session may later have multiple artifact classes (transcript + audio clips + full audio) each with different retention behavior. Future phases may introduce a per-artifact retention table to complement or replace this single-tier-per-session model. For D.0, the session-level tier is sufficient.
 - `retention_until` — Unix ms deadline for auto-prune, NULL = keep forever/indefinite
 
-**Backward compatibility:** Existing `synced_from_device` boolean stays. `synced_from_device = 1` is equivalent to `sync_status IN ('acked', 'committed')`. Existing `audio_retention` column stays as the user-facing preference string; `retention_tier` is the engine's internal classification.
+**Backward compatibility:** Existing `synced_from_device` boolean stays. Only `committed` is treated as fully synced — `acked` remains a transitional state (device has not yet confirmed its SD write). Existing `audio_retention` column stays as the user-facing preference string; `retention_tier` is the engine's internal classification.
 
 ### Migration
 
-Add columns via the existing schema migration system in `schema.ts`. All columns are nullable or have defaults, so existing rows get sensible values without data migration. Backfill: existing rows with `synced_from_device = 1` get `sync_status = 'committed'`. Local sessions (`synced_from_device = 0`) keep `sync_status = NULL`.
+Add columns via the existing schema migration system in `schema.ts`. All columns are nullable or have defaults, so existing rows get sensible values without data migration. Backfill: existing rows with `synced_from_device = 1` get `sync_status = 'committed'` (the only fully-synced terminal state). Local sessions (`synced_from_device = 0`) keep `sync_status = NULL`.
 
 ## syncCheckpointService.ts
 
@@ -139,11 +139,13 @@ Recalculated on tier change (e.g., when audio is attached to a session).
 
 ### Enforcement
 
-- **Runs on:** App launch + daily interval (24h timer)
+- **Runs on:** App launch, daily interval (24h timer), and manual invocation via `retentionService.runPruneNow()`
+- **Manual trigger:** Exposed for deterministic testing, debugging, and future explicit cleanup actions (e.g., a "Free Storage" button in Settings)
 - **Query:** `SELECT * FROM sessions WHERE retention_until IS NOT NULL AND retention_until < ? AND retention_tier > 2`
 - **Action:** Delete the tier-specific artifact (audio file, clip), downgrade `retention_tier`, recalculate `retention_until`
-- **Exemptions:** Sessions marked as favorited are never auto-pruned (favorited flag on sessions does not exist yet — retention engine checks for it but finds no favorited sessions until that feature is added)
 - **No-ops for now:** Tiers 3 and 4 have no real artifacts yet. The engine runs but finds nothing to prune.
+
+**Future exemption — favorited sessions:** When a `favorited` column is added to the sessions table, favorited sessions should be exempt from auto-pruning. D.0 does not implement favorite-aware checks — the exemption activates once the field exists. <!-- TODO: add favorite-aware prune filter when session favoriting is implemented -->
 
 ### User Settings
 
