@@ -1,16 +1,16 @@
 /**
- * SessionTracker — wires BLE device state to the sessions DB.
+ * SessionTracker — wires device session state to the sessions DB.
  *
- * Subscribes to the Zustand deviceStore (which bleManager keeps in sync).
- * Auto-creates a connection window when the device connects and finalizes
- * it on disconnect. Each row in the sessions table represents one
- * contiguous BLE connection period (a "connection window"), not a
- * user-facing conversation (see types/index.ts for the two-level model).
+ * Subscribes to the Zustand deviceStore. Creates a session when the device
+ * confirms an active session (sessionState -> ACTIVE) and finalizes it when
+ * the device confirms idle (sessionState -> NO_SESSION). Sessions are no
+ * longer tied to BLE connection windows — a BLE disconnect during an active
+ * session leaves the session open until the device confirms idle on reconnect.
  */
 import { useDeviceStore } from '../stores/deviceStore';
 import { bleService } from './bleManager';
 import { createSession, finalizeSession, recordAlertEvent, getPendingSyncCount } from '../db/sessions';
-import { AlertLevel } from '../types';
+import { AlertLevel, AppSessionState } from '../types';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useSessionStore } from '../stores/sessionStore';
 import {
@@ -31,13 +31,10 @@ class SessionTracker {
   private _speechSegments = 0;
 
   start() {
-    // Subscribe to deviceStore for connection and alert level changes
+    // Subscribe to deviceStore for sessionState and alert level changes
     this.unsubscribeStore = useDeviceStore.subscribe(async (state) => {
-      const wasConnected = this.sessionId !== null;
-      const isConnected = state.connected;
-
-      if (isConnected && !wasConnected) {
-        // Device just connected — start a new connection window
+      // --- Session creation (device confirmed active) ---
+      if (state.sessionState === AppSessionState.ACTIVE && this.sessionId === null) {
         try {
           this.sessionId = await createSession(state.sensitivity);
           this.sessionStartMs = Date.now();
@@ -45,47 +42,51 @@ class SessionTracker {
           this._alertCount = 0;
           this._maxAlert = AlertLevel.NONE;
           this._speechSegments = 0;
+          console.log('[SessionTracker] Session created:', this.sessionId);
         } catch (e) {
           console.warn('[SessionTracker] Failed to create session:', e);
         }
       }
 
-      if (!isConnected && wasConnected) {
-        // Device disconnected — finalize the connection window
+      // --- Session finalization (device confirmed idle) ---
+      // Covers ACTIVE -> NO_SESSION and STOPPING -> NO_SESSION transitions
+      if (state.sessionState === AppSessionState.NO_SESSION && this.sessionId !== null) {
         const id = this.sessionId;
         this.sessionId = null;
-        if (id) {
-          try {
-            const durationMs = Date.now() - this.sessionStartMs;
-            await finalizeSession(
-              id,
-              durationMs,
-              this._alertCount,
-              this._maxAlert,
-              this._speechSegments,
+        try {
+          const durationMs = Date.now() - this.sessionStartMs;
+          await finalizeSession(
+            id,
+            durationMs,
+            this._alertCount,
+            this._maxAlert,
+            this._speechSegments,
+          );
+          console.log('[SessionTracker] Session finalized:', id, durationMs, 'ms');
+
+          // Refresh pending sync count after finalize
+          const pendingCount = await getPendingSyncCount();
+          useSessionStore.getState().setPendingSyncCount(pendingCount);
+
+          // Fire session summary + streak check if notifications are on
+          const { notificationsEnabled } = useSettingsStore.getState();
+          if (notificationsEnabled) {
+            await sendSessionSummaryNotification(durationMs, this._alertCount).catch(
+              (e) => console.warn('[SessionTracker] Summary notification failed:', e),
             );
-            // Refresh pending sync count after finalize
-            const pendingCount = await getPendingSyncCount();
-            useSessionStore.getState().setPendingSyncCount(pendingCount);
-            // Fire session summary + streak check if notifications are on
-            const { notificationsEnabled } = useSettingsStore.getState();
-            if (notificationsEnabled) {
-              await sendSessionSummaryNotification(durationMs, this._alertCount).catch(
-                (e) => console.warn('[SessionTracker] Summary notification failed:', e),
-              );
-              await checkAndSendStreakNotification().catch(
-                (e) => console.warn('[SessionTracker] Streak notification failed:', e),
-              );
-            }
-          } catch (e) {
-            console.warn('[SessionTracker] Failed to finalize session:', e);
+            await checkAndSendStreakNotification().catch(
+              (e) => console.warn('[SessionTracker] Streak notification failed:', e),
+            );
           }
+        } catch (e) {
+          console.warn('[SessionTracker] Failed to finalize session:', e);
         }
       }
 
-      // Track alert level transitions while connected
+      // --- Alert level tracking (only during active session) ---
       if (
         this.sessionId &&
+        state.sessionState === AppSessionState.ACTIVE &&
         state.alertLevel > AlertLevel.NONE &&
         state.alertLevel !== this.lastAlertLevel
       ) {
