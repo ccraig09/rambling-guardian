@@ -14,7 +14,7 @@ import {
   encodeUint8,
 } from './ble';
 import type { DeviceState, SessionStats, AlertThresholds } from '../types';
-import { AlertLevel, ConnectionState, DeviceMode, AlertModality } from '../types';
+import { AlertLevel, AppSessionState, ConnectionState, DeviceMode, AlertModality } from '../types';
 import { useDeviceStore } from '../stores/deviceStore';
 import { saveSetting } from '../db/settings';
 import { clearSyncCheckpoint } from './syncEngine';
@@ -31,6 +31,7 @@ const CHR = {
   THRESHOLDS:    '4A980008-1CC4-E7C1-C757-F1267DD021E8',
   MODALITY:      '4A980009-1CC4-E7C1-C757-F1267DD021E8',
   DEVICE_INFO:   '4A98000A-1CC4-E7C1-C757-F1267DD021E8',
+  SESSION_CTRL:  '4A98000B-1CC4-E7C1-C757-F1267DD021E8',
 } as const;
 
 type StatsListener = (stats: SessionStats) => void;
@@ -42,6 +43,9 @@ class BLEService {
   private scanning = false;
   private connecting = false; // Guards against parallel connect attempts
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  // Session control: confirmation timeout + retry tracking
+  private sessionConfirmTimer: ReturnType<typeof setTimeout> | null = null;
+  private sessionRetryCount = 0;
   // Tracks last-known battery level so we can detect threshold crossings
   // null = USB power (no battery installed)
   private currentBattery: number | null = null;
@@ -260,16 +264,18 @@ class BLEService {
 
   private async readInitialValues(device: Device): Promise<void> {
     try {
-      const [alertChr, durChr, modeChr, sensChr, batChr, modChr] = await Promise.all([
+      const [alertChr, durChr, modeChr, sensChr, batChr, modChr, sessionCtrlChr] = await Promise.all([
         device.readCharacteristicForService(SERVICE_UUID, CHR.ALERT_LEVEL),
         device.readCharacteristicForService(SERVICE_UUID, CHR.SPEECH_DUR),
         device.readCharacteristicForService(SERVICE_UUID, CHR.DEVICE_MODE),
         device.readCharacteristicForService(SERVICE_UUID, CHR.SENSITIVITY),
         device.readCharacteristicForService(SERVICE_UUID, CHR.BATTERY),
         device.readCharacteristicForService(SERVICE_UUID, CHR.MODALITY),
+        device.readCharacteristicForService(SERVICE_UUID, CHR.SESSION_CTRL),
       ]);
       this.lastBatteryReadAt = Date.now();
       const rawBattery = batChr.value ? parseUint8(batChr.value) : null;
+      const sessionCtrlVal = sessionCtrlChr.value ? parseUint8(sessionCtrlChr.value) : 0;
       this.updateState({
         alertLevel: alertChr.value ? parseUint8(alertChr.value) : AlertLevel.NONE,
         speechDuration: durChr.value ? parseUint32LE(durChr.value) : 0,
@@ -277,6 +283,7 @@ class BLEService {
         sensitivity: sensChr.value ? parseUint8(sensChr.value) : 0,
         battery: rawBattery === null || rawBattery === 255 ? null : rawBattery,
         modality: modChr.value ? parseUint8(modChr.value) : AlertModality.BOTH,
+        sessionState: sessionCtrlVal === 0x01 ? AppSessionState.ACTIVE : AppSessionState.NO_SESSION,
       });
     } catch (e) {
       console.warn('[BLE] Failed to read initial values:', e);
@@ -330,6 +337,80 @@ class BLEService {
         if (chr?.value) this.updateState({ modality: parseUint8(chr.value) });
       }),
     );
+
+    this.subscriptions.push(
+      device.monitorCharacteristicForService(SERVICE_UUID, CHR.SESSION_CTRL, (_err, chr) => {
+        if (chr?.value) {
+          const val = parseUint8(chr.value);
+          this.handleSessionCtrlNotify(val);
+        }
+      }),
+    );
+  }
+
+  // -------------------------------------------------------------------
+  // Session control helpers
+  // -------------------------------------------------------------------
+
+  private handleSessionCtrlNotify(val: number): void {
+    // Clear any pending confirmation timeout
+    if (this.sessionConfirmTimer) {
+      clearTimeout(this.sessionConfirmTimer);
+      this.sessionConfirmTimer = null;
+    }
+    this.sessionRetryCount = 0;
+
+    const store = useDeviceStore.getState();
+    if (val === 0x01) {
+      // Device confirmed active session
+      store.updateDevice({ sessionState: AppSessionState.ACTIVE });
+      console.log('[BLE] Session confirmed: ACTIVE');
+    } else {
+      // Device confirmed idle (0x00 or any non-0x01)
+      store.updateDevice({ sessionState: AppSessionState.NO_SESSION });
+      console.log('[BLE] Session confirmed: NO_SESSION');
+    }
+  }
+
+  private async handleSessionConfirmTimeout(command: number): Promise<void> {
+    this.sessionConfirmTimer = null;
+
+    if (this.sessionRetryCount < 1) {
+      // Retry once
+      this.sessionRetryCount++;
+      console.warn(`[BLE] Session ${command === 0x01 ? 'start' : 'stop'} confirmation timeout — retrying`);
+
+      try {
+        if (this.device) {
+          await this.device.writeCharacteristicWithResponseForService(
+            SERVICE_UUID, CHR.SESSION_CTRL, encodeUint8(command),
+          );
+          this.sessionConfirmTimer = setTimeout(() => {
+            this.handleSessionConfirmTimeout(command);
+          }, 3000);
+        }
+      } catch (e) {
+        console.warn('[BLE] Session retry write failed:', e);
+        // Give up — fall through to fallback below
+        this.sessionRetryCount = 99; // force fallback
+        this.handleSessionConfirmTimeout(command);
+      }
+      return;
+    }
+
+    // Gave up after retry — best-effort fallback
+    console.warn(`[BLE] Session ${command === 0x01 ? 'start' : 'stop'} confirmation failed after retry`);
+    const store = useDeviceStore.getState();
+
+    if (command === 0x01) {
+      // Start failed — return to NO_SESSION
+      store.updateDevice({ sessionState: AppSessionState.NO_SESSION });
+    } else {
+      // Stop failed — best-effort: finalize with last known stats.
+      // This is a best-effort recovery path, not guaranteed truth.
+      // Device-confirmed state is the source of truth when available.
+      store.updateDevice({ sessionState: AppSessionState.NO_SESSION });
+    }
   }
 
   // -------------------------------------------------------------------
@@ -363,6 +444,66 @@ class BLEService {
     await this.device.writeCharacteristicWithResponseForService(
       SERVICE_UUID, CHR.THRESHOLDS, encoded,
     );
+  }
+
+  /** Request device to start a session. App enters STARTING state, waits for device confirmation. */
+  async startSession(): Promise<void> {
+    if (!this.device) throw new Error('Not connected');
+
+    const store = useDeviceStore.getState();
+    if (store.sessionState === AppSessionState.ACTIVE || store.sessionState === AppSessionState.STARTING) {
+      console.log('[BLE] startSession ignored — already', store.sessionState);
+      return;
+    }
+
+    store.updateDevice({ sessionState: AppSessionState.STARTING });
+    this.sessionRetryCount = 0;
+
+    try {
+      await this.device.writeCharacteristicWithResponseForService(
+        SERVICE_UUID, CHR.SESSION_CTRL, encodeUint8(0x01),
+      );
+      console.log('[BLE] Session start command sent');
+    } catch (e) {
+      console.warn('[BLE] Session start write failed:', e);
+      store.updateDevice({ sessionState: AppSessionState.NO_SESSION });
+      throw e;
+    }
+
+    // Wait for device confirmation (3s timeout + 1 retry)
+    this.sessionConfirmTimer = setTimeout(() => {
+      this.handleSessionConfirmTimeout(0x01);
+    }, 3000);
+  }
+
+  /** Request device to stop the session. App enters STOPPING state, waits for device confirmation. */
+  async stopSession(): Promise<void> {
+    if (!this.device) throw new Error('Not connected');
+
+    const store = useDeviceStore.getState();
+    if (store.sessionState === AppSessionState.NO_SESSION || store.sessionState === AppSessionState.STOPPING) {
+      console.log('[BLE] stopSession ignored — already', store.sessionState);
+      return;
+    }
+
+    store.updateDevice({ sessionState: AppSessionState.STOPPING });
+    this.sessionRetryCount = 0;
+
+    try {
+      await this.device.writeCharacteristicWithResponseForService(
+        SERVICE_UUID, CHR.SESSION_CTRL, encodeUint8(0x02),
+      );
+      console.log('[BLE] Session stop command sent');
+    } catch (e) {
+      console.warn('[BLE] Session stop write failed:', e);
+      // Fallback: finalize with last known stats
+      store.updateDevice({ sessionState: AppSessionState.NO_SESSION });
+      throw e;
+    }
+
+    this.sessionConfirmTimer = setTimeout(() => {
+      this.handleSessionConfirmTimeout(0x02);
+    }, 3000);
   }
 
   // -------------------------------------------------------------------
@@ -424,6 +565,10 @@ class BLEService {
   async disconnect(): Promise<void> {
     this.intentionalDisconnect = true;
     this.cancelReconnectTimer();
+    if (this.sessionConfirmTimer) {
+      clearTimeout(this.sessionConfirmTimer);
+      this.sessionConfirmTimer = null;
+    }
     this.connecting = false;
     this.cleanupSubscriptions();
     if (this.device) {
