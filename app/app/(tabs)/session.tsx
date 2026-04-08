@@ -41,8 +41,9 @@ const ALERT_LABELS: Record<number, string> = {
 };
 
 const MODE_LABELS: Record<number, string> = {
-  [DeviceMode.MONITORING]: 'Monitoring',
-  [DeviceMode.PRESENTATION]: 'Presentation',
+  [DeviceMode.IDLE]: 'Idle',
+  [DeviceMode.ACTIVE_SESSION]: 'Active Session',
+  [DeviceMode.MANUAL_NOTE]: 'Manual Note',
   [DeviceMode.DEEP_SLEEP]: 'Deep Sleep',
 };
 

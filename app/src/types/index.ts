@@ -10,15 +10,31 @@ export enum AlertLevel {
 }
 
 export enum DeviceMode {
-  MONITORING = 0,
-  PRESENTATION = 1,
-  DEEP_SLEEP = 2,
+  IDLE = 0,
+  ACTIVE_SESSION = 1,
+  MANUAL_NOTE = 2,
+  DEEP_SLEEP = 3,
 }
 
 export enum AlertModality {
   LED_ONLY = 0,
   VIBRATION_ONLY = 1,
   BOTH = 2,
+}
+
+export enum AppSessionState {
+  NO_SESSION = 'no_session',
+  STARTING = 'starting',
+  ACTIVE = 'active',
+  STOPPING = 'stopping',
+}
+
+export enum TriggerSource {
+  BUTTON = 0,
+  BLE_COMMAND = 1,
+  WATCH = 2,
+  REMOTE = 3,
+  AUTO_TIMEOUT = 4,
 }
 
 export enum ConnectionState {
@@ -44,6 +60,8 @@ export interface DeviceState {
   battery: number | null; // 0-100, null = USB power (no battery)
   modality: AlertModality;
   connected: boolean;
+  sessionState: AppSessionState;
+  triggerSource: TriggerSource | null;
 }
 
 export interface SessionStats {

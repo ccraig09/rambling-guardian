@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AlertLevel, AlertModality, ConnectionState, DeviceMode, type DeviceState } from '../types';
+import { AlertLevel, AlertModality, AppSessionState, ConnectionState, DeviceMode, TriggerSource, type DeviceState } from '../types';
 
 interface DeviceStore extends DeviceState {
   connectionState: ConnectionState;
@@ -14,11 +14,13 @@ interface DeviceStore extends DeviceState {
 const initialState: DeviceState & { connectionState: ConnectionState; lastDeviceId: string | null } = {
   alertLevel: AlertLevel.NONE,
   speechDuration: 0,
-  mode: DeviceMode.MONITORING,
+  mode: DeviceMode.IDLE,
   sensitivity: 0,
   battery: null,
   modality: AlertModality.BOTH,
   connected: false,
+  sessionState: AppSessionState.NO_SESSION,
+  triggerSource: null,
   connectionState: ConnectionState.IDLE,
   lastDeviceId: null,
 };

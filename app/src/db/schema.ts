@@ -86,3 +86,22 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_streaks_date ON streaks(date);
   `);
 }
+
+export async function migrateToV2(db: SQLiteDatabase): Promise<void> {
+  // Add trigger_source and session_type columns (D-pre A)
+  const migrations = [
+    `ALTER TABLE sessions ADD COLUMN trigger_source TEXT DEFAULT 'button'`,
+    `ALTER TABLE sessions ADD COLUMN session_type TEXT DEFAULT 'active_session'`,
+  ];
+
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch (e: any) {
+      // Column already exists — ignore "duplicate column" errors
+      if (!e.message?.includes('duplicate column')) {
+        throw e;
+      }
+    }
+  }
+}
