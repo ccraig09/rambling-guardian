@@ -19,7 +19,7 @@
  */
 
 import { getDatabase } from './database';
-import type { Session, SessionMode, AlertEvent } from '../types';
+import type { Session, SessionMode, AlertEvent, SyncStatus, SessionSyncInfo, RetentionTier } from '../types';
 import { AlertLevel } from '../types';
 
 /** Start a new session, returns session id */
@@ -141,10 +141,11 @@ export async function upsertDeviceSession(session: {
   deviceSequence?: number;
 }): Promise<void> {
   const db = await getDatabase();
+  const now = Date.now();
   await db.runAsync(
     `INSERT INTO sessions
-       (id, started_at, ended_at, duration_ms, mode, alert_count, max_alert, speech_segments, sensitivity, synced_from_device, boot_id, device_sequence)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+       (id, started_at, ended_at, duration_ms, mode, alert_count, max_alert, speech_segments, sensitivity, synced_from_device, boot_id, device_sequence, sync_status, processed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 'processed', ?)
      ON CONFLICT(id) DO UPDATE SET
        ended_at        = COALESCE(excluded.ended_at, sessions.ended_at),
        duration_ms     = excluded.duration_ms,
@@ -153,7 +154,9 @@ export async function upsertDeviceSession(session: {
        speech_segments = excluded.speech_segments,
        synced_from_device = 1,
        boot_id         = COALESCE(excluded.boot_id, sessions.boot_id),
-       device_sequence = COALESCE(excluded.device_sequence, sessions.device_sequence)`,
+       device_sequence = COALESCE(excluded.device_sequence, sessions.device_sequence),
+       sync_status     = excluded.sync_status,
+       processed_at    = excluded.processed_at`,
     [
       session.id,
       session.startedAt,
@@ -166,6 +169,7 @@ export async function upsertDeviceSession(session: {
       session.sensitivity,
       session.bootId ?? null,
       session.deviceSequence ?? null,
+      now,
     ],
   );
 }
@@ -181,6 +185,138 @@ export async function getPendingSyncCount(): Promise<number> {
     'SELECT COUNT(*) as count FROM sessions WHERE synced_from_device = 0 AND ended_at IS NOT NULL',
   );
   return row?.count ?? 0;
+}
+
+// -------------------------------------------------------------------
+// Sync status updates (D.0)
+// -------------------------------------------------------------------
+
+/** Update sync_status and set the corresponding timestamp. */
+export async function updateSyncStatus(
+  sessionId: string,
+  status: SyncStatus,
+): Promise<void> {
+  const db = await getDatabase();
+  const now = Date.now();
+  const timestampCol =
+    status === 'received' ? 'received_at' :
+    status === 'processed' ? 'processed_at' :
+    status === 'committed' ? 'committed_at' : null;
+
+  if (timestampCol) {
+    await db.runAsync(
+      `UPDATE sessions SET sync_status = ?, ${timestampCol} = ? WHERE id = ?`,
+      [status, now, sessionId],
+    );
+  } else {
+    await db.runAsync(
+      `UPDATE sessions SET sync_status = ? WHERE id = ?`,
+      [status, sessionId],
+    );
+  }
+}
+
+/** Get all sessions that are not yet committed (in-flight or failed). */
+export async function getUncommittedSessions(): Promise<SessionSyncInfo[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<any>(
+    `SELECT id, sync_status, received_at, processed_at, committed_at, boot_id, device_sequence
+     FROM sessions
+     WHERE sync_status IS NOT NULL AND sync_status != 'committed'
+     ORDER BY received_at ASC`,
+  );
+  return rows.map(parseSyncInfo);
+}
+
+/** Get sessions that failed sync. */
+export async function getFailedSessions(): Promise<SessionSyncInfo[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<any>(
+    `SELECT id, sync_status, received_at, processed_at, committed_at, boot_id, device_sequence
+     FROM sessions WHERE sync_status = 'failed'`,
+  );
+  return rows.map(parseSyncInfo);
+}
+
+/** Get sync stats: count by status category. */
+export async function getSyncStats(): Promise<{
+  pending: number;
+  inFlight: number;
+  committed: number;
+  failed: number;
+}> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<{ sync_status: string | null; count: number }>(
+    `SELECT sync_status, COUNT(*) as count FROM sessions
+     WHERE sync_status IS NOT NULL
+     GROUP BY sync_status`,
+  );
+  let pending = 0, inFlight = 0, committed = 0, failed = 0;
+  for (const r of rows) {
+    if (r.sync_status === 'pending') pending += r.count;
+    else if (r.sync_status === 'committed') committed += r.count;
+    else if (r.sync_status === 'failed') failed += r.count;
+    else inFlight += r.count; // received, processed, acked
+  }
+  return { pending, inFlight, committed, failed };
+}
+
+// -------------------------------------------------------------------
+// Retention queries (D.0)
+// -------------------------------------------------------------------
+
+/** Update retention tier and deadline for a session. */
+export async function updateRetention(
+  sessionId: string,
+  tier: RetentionTier,
+  retentionUntil: number | null,
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `UPDATE sessions SET retention_tier = ?, retention_until = ? WHERE id = ?`,
+    [tier, retentionUntil, sessionId],
+  );
+}
+
+/** Get sessions whose retention has expired and are eligible for pruning. */
+export async function getExpiredSessions(): Promise<Array<{
+  id: string;
+  retentionTier: RetentionTier;
+  retentionUntil: number;
+}>> {
+  const db = await getDatabase();
+  const now = Date.now();
+  const rows = await db.getAllAsync<any>(
+    `SELECT id, retention_tier, retention_until FROM sessions
+     WHERE retention_until IS NOT NULL AND retention_until < ? AND retention_tier > 2`,
+    [now],
+  );
+  return rows.map((r: any) => ({
+    id: r.id,
+    retentionTier: r.retention_tier as RetentionTier,
+    retentionUntil: r.retention_until,
+  }));
+}
+
+/** Delete a session and its alert events. */
+export async function deleteSession(sessionId: string): Promise<void> {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM alert_events WHERE session_id = ?', [sessionId]);
+    await db.runAsync('DELETE FROM sessions WHERE id = ?', [sessionId]);
+  });
+}
+
+function parseSyncInfo(r: any): SessionSyncInfo {
+  return {
+    id: r.id,
+    syncStatus: r.sync_status,
+    receivedAt: r.received_at,
+    processedAt: r.processed_at,
+    committedAt: r.committed_at,
+    bootId: r.boot_id,
+    deviceSequence: r.device_sequence,
+  };
 }
 
 function parseSession(r: any): Session {
