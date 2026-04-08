@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, Alert, Linking } from 'react-native';
 import { router } from 'expo-router';
-import { Audio } from 'expo-av';
+import type { AudioPlayer } from 'expo-audio';
 import { useTheme } from '../../src/theme/theme';
 import { VoicePromptCard } from '../../src/components/VoicePromptCard';
 import { voicePrompts } from '../../src/data/voicePrompts';
@@ -33,7 +33,7 @@ export default function RecordScreen() {
   const [lastRecordingPath, setLastRecordingPath] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
-  const playbackSoundRef = useRef<Audio.Sound | null>(null);
+  const playbackSoundRef = useRef<AudioPlayer | null>(null);
 
   // Set up metering callback once
   useEffect(() => {
@@ -161,13 +161,14 @@ export default function RecordScreen() {
       playbackSoundRef.current = null;
     }
     try {
-      const sound = await playRecording(lastRecordingPath);
-      playbackSoundRef.current = sound;
+      const player = await playRecording(lastRecordingPath);
+      playbackSoundRef.current = player;
       // Auto-cleanup when playback finishes
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if ('didJustFinish' in status && status.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
-          if (playbackSoundRef.current === sound) {
+      const subscription = player.addListener('playbackStatusUpdate', (status) => {
+        if (status.didJustFinish) {
+          player.remove();
+          subscription.remove();
+          if (playbackSoundRef.current === player) {
             playbackSoundRef.current = null;
           }
         }
