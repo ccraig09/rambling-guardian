@@ -194,3 +194,4 @@ Deferred improvements to revisit after all phases ship.
 - [ ] Dark/light mode toggle in settings — currently follows system; no in-app override UI
 - [ ] Exercise progress tracking — per-exercise history, improvement trends over time
 - [ ] Export/share session data — PDF or CSV export for therapist review
+- [ ] Voice trainer → enrollment bridge — phone trainer recordings are clean labeled Carlos speech samples; use them to generate voice profile / embeddings in app/cloud layer; compare session audio/transcript segments against that profile for speaker attribution ("Me" vs others). Architecture direction: enrollment in app → profile in cloud → matching in transcript pipeline. Do not push identity logic to embedded device first.

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, Alert, Linking } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import type { AudioPlayer } from 'expo-audio';
 import { useTheme } from '../../src/theme/theme';
 import { VoicePromptCard } from '../../src/components/VoicePromptCard';
@@ -43,15 +43,18 @@ export default function RecordScreen() {
     };
   }, []);
 
-  // Clean up playback sound on unmount
-  useEffect(() => {
-    return () => {
-      if (playbackSoundRef.current) {
-        stopPlayback(playbackSoundRef.current).catch(() => {});
-        playbackSoundRef.current = null;
-      }
-    };
-  }, []);
+  // Stop playback + cancel recording on screen blur or unmount
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (playbackSoundRef.current) {
+          stopPlayback(playbackSoundRef.current).catch(() => {});
+          playbackSoundRef.current = null;
+        }
+        cancelRecording().catch(() => {});
+      };
+    }, []),
+  );
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {

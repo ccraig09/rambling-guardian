@@ -90,7 +90,8 @@ export async function startRecording(): Promise<boolean> {
 export async function stopRecording(): Promise<{ filePath: string; durationMs: number } | null> {
   if (!currentRecorder) return null;
   clearMeteringInterval();
-  meteringCallback = null;
+  // Note: do NOT null meteringCallback here — the component owns that lifecycle
+  // via setOnMeteringUpdate. Nulling it breaks metering on subsequent recordings.
 
   // Read duration before stop — stop() returns void, not status
   const durationMs = currentRecorder.getStatus().durationMillis ?? 0;
@@ -112,7 +113,6 @@ export async function stopRecording(): Promise<{ filePath: string; durationMs: n
 export async function cancelRecording(): Promise<void> {
   if (!currentRecorder) return;
   clearMeteringInterval();
-  meteringCallback = null;
 
   const uri = currentRecorder.uri;
   await currentRecorder.stop();
