@@ -87,7 +87,7 @@ Living ticket tracker. Check off as completed.
 - [x] RG-C.11.15: Tests — 68 tests across 8 passing suites (added syncEngine, notifications, extended syncReplay). Note: theme.test.ts has a pre-existing failure (expo-sqlite ESM import) unrelated to Batch 2.
 
 #### Remaining
-- [ ] RG-C.11.16: expo-av → expo-audio migration (before SDK 55)
+- [x] RG-C.11.16: expo-av → expo-audio migration (before SDK 55)
 - [ ] Run revise-claude-md and commit
 
 ---
@@ -135,25 +135,25 @@ Living ticket tracker. Check off as completed.
 
 ## Phase D.0 — Cloud Foundation + Sync Model
 
+- [ ] RG-D.0.4: Sync checkpoints / watermarks
+- [ ] RG-D.0.5: Retention policy for metadata vs audio
 - [ ] RG-D.0.1: Firestore for metadata
 - [ ] RG-D.0.2: Storage for optional audio blobs
 - [ ] RG-D.0.3: Google Drive for archive/export only
-- [ ] RG-D.0.4: Sync checkpoints / watermarks
-- [ ] RG-D.0.5: Retention policy for metadata vs audio
 - [ ] RG-D.0.6: Cloud retry/resume tests
 
 ---
 
-## Phase D — Device-First Coaching + Insights
+## Phase D — Transcription + AI Coaching
 
-- [ ] RG-D.1: Device-first session segmentation + local backlog
-- [ ] RG-D.2: Real-time transcription + speaker detection
-- [ ] RG-D.3: Voice enrollment + speaker attribution
-- [ ] RG-D.4: Context classification (solo, couple, meeting, presentation, background noise)
-- [ ] RG-D.5: Coaching engine — fillers, pacing, interruption patterns, overlong runs, reflection prompts
-- [ ] RG-D.6: Exercise recommendation engine
-- [ ] RG-D.7: Post-session summaries + insights
-- [ ] RG-D.8: Backup/export flow
+- [ ] RG-D.1: Transcript pipeline foundation — BLE audio streaming (16kHz PCM) to app, Deepgram Nova-3 STT integration, live transcript display, VAD-gated to avoid idle STT cost
+- [ ] RG-D.2: Voice enrollment + speaker attribution foundation — match Carlos's voice embedding (from Phase C trainer) to auto-label "Me", other speakers as "Speaker 1/2/…", speaker embedding storage
+- [ ] RG-D.3: Speaker-aware transcript handling / diarization-ready processing — real-time speaker labeling in transcript, "New voice detected" prompts, speaker library with return-visitor matching, name editing
+- [ ] RG-D.4: Context classification — detect solo / couple / meeting / presentation / background noise from speaker count + patterns, mode-aware coaching (only coach YOUR speech in meetings)
+- [ ] RG-D.5: Coaching engine — filler detection, pacing analysis, interruption patterns, overlong runs, reflection prompts, "Catch me up" summaries, "Draft a question" feature
+- [ ] RG-D.6: Post-session summaries + insights — Claude Sonnet summaries, rambling highlights, action items, improvement trends vs previous sessions, context-aware templates per mode
+- [ ] RG-D.7: Exercise recommendation engine — suggest exercises based on detected patterns (filler words → articulation drills, pacing → rhythm exercises), integrate with existing exercise library
+- [ ] RG-D.8: Backup/export flow — Google Drive sync (app-mediated OAuth), folder structure (year/month/auto-title), separate Audio/ and Transcripts/ folders, background queue
 - [ ] Run revise-claude-md and commit
 
 ---
