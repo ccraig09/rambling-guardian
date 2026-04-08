@@ -133,14 +133,18 @@ Living ticket tracker. Check off as completed.
 
 ---
 
-## Phase D.0 — Cloud Foundation + Sync Model
+## Phase D.0 — Local-First Sync & Retention Foundation
 
-- [ ] RG-D.0.4: Sync checkpoints / watermarks
-- [ ] RG-D.0.5: Retention policy for metadata vs audio
-- [ ] RG-D.0.1: Firestore for metadata
-- [ ] RG-D.0.2: Storage for optional audio blobs
-- [ ] RG-D.0.3: Google Drive for archive/export only
-- [ ] RG-D.0.6: Cloud retry/resume tests
+### Implemented (local-first)
+- [x] RG-D.0.4: Sync checkpoints — per-session sync_status pipeline (pending→received→processed→acked→committed), committed-only watermark, syncCheckpointService
+- [x] RG-D.0.5: Retention policy — 4-tier model (metadata forever, transcript indefinite, clips 30d, audio 7d), retentionService with runPruneNow() manual trigger, enforcement loop
+- [x] RG-D.0.T: SyncTarget type definition + tests for checkpoint and retention services
+
+### Deferred (cloud — after transcript artifacts exist)
+- [ ] ~~RG-D.0.1~~: Firestore for metadata
+- [ ] ~~RG-D.0.2~~: Storage for optional audio blobs
+- [ ] ~~RG-D.0.3~~: Google Drive for archive/export only
+- [ ] ~~RG-D.0.6~~: Cloud retry/resume tests
 
 ---
 

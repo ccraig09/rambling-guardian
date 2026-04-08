@@ -59,6 +59,24 @@ BLE sync: `4A98000C` (SYNC_DATA) — manifest(0x01)/request(0x02)/ack(0x03)/comm
 No-SD graceful degradation: session runs, BLE live stats work, backlog skipped. Unwritten data is lost on power-off — no false recovery promises.
 Build size after D-pre B: 737KB flash (22%), 48KB RAM (14%).
 
+### Sync Status Model (Phase D.0)
+Per-session `sync_status`: NULL (local) | pending | received | processed | acked | committed | failed.
+Single watermark advances only on `committed` (device confirmed SD write). `acked` is transitional, not equivalent to synced.
+syncCheckpointService.ts manages status transitions. syncEngine.ts retains the BLE state machine. syncTransport.ts wires status calls into the BLE sync cycle.
+Watermark stored in settings table under key `syncWatermark`.
+
+### Retention Tiers (Phase D.0)
+| Tier | Data | Retention | Auto-Prune |
+|------|------|-----------|------------|
+| 1 | Metadata | Forever | Never |
+| 2 | Transcript | Indefinite | Manual only |
+| 3 | Alert clips | 30 days | Yes |
+| 4 | Full audio | 7 days | Yes |
+retentionService.ts enforces. `runPruneNow()` for manual trigger. `startRetentionEnforcement()` on app launch + daily interval. Tiers 3-4 are no-ops until audio artifacts exist.
+`retention_tier` on session row = current effective/highest tier. Future per-artifact table may complement this.
+Favorited session exemption deferred until favorited column exists.
+SyncTarget type in syncTarget.ts documents future cloud adapter contract — not implemented in D.0.
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 
