@@ -5,6 +5,7 @@
 
 static I2SClass i2s;
 static bool i2sReady = false;
+static bool suspended = false;
 static bool speechActive = false;
 static int currentEnergy = 0;
 static int currentSensitivity = 0;  // Default: most sensitive (sensitivity level 0)
@@ -98,6 +99,15 @@ static void calibrateVAD() {
   Serial.println(calibratedBaseline);
 }
 
+static void onModeChanged(EventType event, int payload) {
+  DeviceMode mode = (DeviceMode)payload;
+  if (mode == MODE_ACTIVE_SESSION || mode == MODE_MANUAL_NOTE) {
+    audioInputResume();
+  } else {
+    audioInputSuspend();
+  }
+}
+
 void audioInputInit() {
   i2s.setPinsPdmRx(PIN_MIC_CLK, PIN_MIC_DATA);
 
@@ -110,10 +120,12 @@ void audioInputInit() {
   i2sReady = true;
   calibrateVAD();  // measure ambient noise and set initial threshold
   eventBusSubscribe(EVENT_SENSITIVITY_CHANGED, onSensitivityChanged);
+  eventBusSubscribe(EVENT_MODE_CHANGED, onModeChanged);
   Serial.println("[Audio] Microphone initialized (PDM RX, 16kHz, 16-bit mono)");
 }
 
 void audioInputUpdate() {
+  if (suspended) return;
   if (!i2sReady) return;
   currentEnergy = calculateEnergy();
   // Apply sensitivity level as a multiplier on top of calibrated baseline
@@ -160,4 +172,46 @@ int audioGetLastSamples(const int16_t** buf) {
     *buf = sampleBuffer;
   }
   return lastSampleCount;
+}
+
+void audioInputSuspend() {
+  if (suspended) return;
+  suspended = true;
+
+  // If speech was active, publish end event to clean up subscribers
+  if (speechActive) {
+    speechActive = false;
+    eventBusPublish(EVENT_SPEECH_ENDED, currentEnergy);
+  }
+
+  i2s.end();
+  i2sReady = false;
+
+  // Reset VAD state
+  aboveCount = 0;
+  currentEnergy = 0;
+
+  Serial.println("[Audio] Suspended (I2S stopped)");
+}
+
+void audioInputResume() {
+  if (!suspended) return;
+  suspended = false;
+
+  // Re-init I2S
+  i2s.setPinsPdmRx(PIN_MIC_CLK, PIN_MIC_DATA);
+  if (!i2s.begin(I2S_MODE_PDM_RX, AUDIO_SAMPLE_RATE,
+                 I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+    Serial.println("[Audio] ERROR: Failed to restart I2S on resume!");
+    return;
+  }
+  i2sReady = true;
+
+  // Re-calibrate — ambient noise may have changed
+  calibrateVAD();
+  Serial.println("[Audio] Resumed (I2S restarted, re-calibrated)");
+}
+
+bool audioInputIsActive() {
+  return i2sReady && !suspended;
 }

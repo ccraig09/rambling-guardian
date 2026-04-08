@@ -34,9 +34,12 @@ void setup() {
   sessionLoggerInit();
   vibrationOutputInit();
 
+  audioInputSuspend();  // Boot into IDLE — don't actively listen
+
   Serial.println("=== System ready ===");
-  Serial.println("Modes: single-press = presentation, long-press = sleep");
+  Serial.println("Modes: single-press = start/stop session, long-press = sleep");
   Serial.println("LED: green=safe, yellow=7s, orange=15s, red=30s, blink=60s");
+  Serial.println("[Mode] Device idle — press button to start session");
 
   // Subscribe to speech events so we can see them in the log
   eventBusSubscribe(EVENT_SPEECH_STARTED, onSpeech);
@@ -63,12 +66,23 @@ void onAlert(EventType event, int payload) {
 }
 
 void loop() {
-  audioInputUpdate();
-  speechTimerUpdate();
+  DeviceMode mode = modeManagerGetMode();
+
+  // Audio processing only when actively listening
+  if (mode == MODE_ACTIVE_SESSION || mode == MODE_MANUAL_NOTE) {
+    audioInputUpdate();
+  }
+
+  // Speech timer only in active sessions (not manual notes)
+  if (mode == MODE_ACTIVE_SESSION) {
+    speechTimerUpdate();
+  }
+
+  // These always run regardless of mode
   ledOutputUpdate();
   buttonInputUpdate();
   batteryMonitorUpdate();
-  captureModeUpdate();
+  captureModeUpdate();       // only does work internally when CAPTURE_RECORDING
   vibrationOutputUpdate();
   bleOutputUpdate();
 
