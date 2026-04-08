@@ -5,6 +5,7 @@
 #include "wav_writer.h"
 #include "sd_card.h"
 #include "session_logger.h"
+#include "mode_manager.h"
 
 // ============================================
 // State Machine
@@ -49,6 +50,11 @@ static void stopRecording(const char* reason) {
 
 static void onDoublePress(EventType event, int payload) {
   if (state == CAPTURE_IDLE) {
+    DeviceMode mode = modeManagerGetMode();
+    if (mode == MODE_ACTIVE_SESSION) {
+      Serial.println("[Capture] Double-press ignored — active session");
+      return;
+    }
     if (!sdCardIsReady()) {
       Serial.println("[Capture] No SD card — cannot record");
       return;
