@@ -144,7 +144,7 @@ export async function clearSyncCheckpoint(): Promise<void> {
   await saveSetting(CHECKPOINT_KEY, '');
 }
 
-/** Advance the checkpoint watermark after a successful session import. */
+/** @deprecated Use syncCheckpointService.advanceToCommitted() instead. Kept for test compatibility. */
 export async function advanceCheckpoint(
   deviceCheckpoint: string,
   sessionId: string,

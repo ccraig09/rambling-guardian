@@ -14,8 +14,13 @@ import {
   startFinalizing,
   completeSync,
   failSync,
-  advanceCheckpoint,
 } from './syncEngine';
+import {
+  advanceToProcessed,
+  advanceToAcked,
+  advanceToCommitted,
+  markFailed,
+} from './syncCheckpointService';
 
 const SERVICE_UUID = '4A980001-1CC4-E7C1-C757-F1267DD021E8';
 const CHR_SYNC_DATA = '4A98000C-1CC4-E7C1-C757-F1267DD021E8';
@@ -65,6 +70,7 @@ export async function syncFromDevice(): Promise<number> {
   await beginSync();
 
   let imported = 0;
+  const importedSessions: Array<{ id: string; checkpoint: string }> = [];
 
   try {
     // 1. Request manifest
@@ -131,6 +137,7 @@ export async function syncFromDevice(): Promise<number> {
         bootId: record.bootId,
         deviceSequence: record.deviceSessionSequence,
       });
+      await advanceToProcessed(sessionId);
 
       // Ack the record
       const ackData = encodeSyncAck(record.bootId, record.deviceSessionSequence);
@@ -143,9 +150,14 @@ export async function syncFromDevice(): Promise<number> {
       if (ackResp && parseUint8(ackResp) !== 0x00) {
         console.warn(`[SyncTransport] Ack failed for ${sessionId}`);
         // Continue anyway -- partial success is normal
+      } else {
+        await advanceToAcked(sessionId);
       }
 
-      await advanceCheckpoint(`${record.bootId}-${record.deviceSessionSequence}`, sessionId);
+      importedSessions.push({
+        id: sessionId,
+        checkpoint: `${record.bootId}-${record.deviceSessionSequence}`,
+      });
       imported++;
       console.log(`[SyncTransport] Imported ${sessionId}`);
     }
@@ -160,14 +172,22 @@ export async function syncFromDevice(): Promise<number> {
     if (commitResp && parseUint8(commitResp) === 0x02) {
       // Commit write failed on device -- partial success.
       // This is a best-effort recovery path, not guaranteed truth.
-      // App-side checkpoint is already saved. On next boot, device
-      // will re-send these records and app will re-import idempotently.
+      // On next boot, device will re-send these records and app will
+      // re-import idempotently.
       console.warn('[SyncTransport] Device commit failed -- partial success, will retry next sync');
+    } else {
+      // Device commit succeeded — advance all sessions to committed watermark
+      for (const s of importedSessions) {
+        await advanceToCommitted(s.id, s.checkpoint);
+      }
     }
 
     await completeSync();
     return imported;
   } catch (e: any) {
+    for (const s of importedSessions) {
+      await markFailed(s.id, e.message || 'Sync failed').catch(() => {});
+    }
     await failSync(e.message || 'Sync failed');
     return imported;
   }
