@@ -39,10 +39,9 @@ Build size after Phase B: 441KB flash (13%), 34KB RAM (10%) — baseline for tra
 
 ## Architecture
 Modules communicate via event bus only — never call each other directly.
-Audio → VAD → SpeechTimer → EventBus → LED/Vibration/BLE subscribers.
-SD card recording: EVENT_BUTTON_DOUBLE → CaptureMode → WavWriter → SD card. Auto-stops after 5s silence.
-New events (A.5): EVENT_SD_READY, EVENT_CAPTURE_STARTED, EVENT_CAPTURE_STOPPED
-New events (B): EVENT_BUTTON_TRIPLE, EVENT_MODALITY_CHANGED
+**Idle by default (Phase D-pre A):** Device boots into MODE_IDLE (not listening). Sessions start only when triggered (button press, BLE command, future Apple Watch shortcut). Audio I2S is suspended in IDLE to save power (~20mA vs ~50mA).
+Session lifecycle: trigger → EVENT_SESSION_START_REQUESTED → mode_manager validates → EVENT_SESSION_STARTED → Audio resumes, VAD+SpeechTimer active → trigger stop → EVENT_SESSION_STOP_REQUESTED → EVENT_SESSION_STOPPED → Audio suspends.
+SD card recording: EVENT_BUTTON_DOUBLE → CaptureMode → WavWriter → SD card. Only from IDLE (ignored during active session). Auto-stops after 5s silence.
 Alert modality: triple-press cycles LED only / vibration only / both. Default: both. Resets on boot.
 Vibration motor on GPIO 3 via S8050 NPN transistor. PWM patterns per alert level. SPI pins: expansion board uses GPIO 7/8/9 (not defaults).
 Button is interrupt-driven (GPIO CHANGE mode) — never poll, I2S blocks for ~100ms per loop.
@@ -62,7 +61,8 @@ When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATT
 - **Smoke Tests:** `SMOKE_TESTS.md` — Phase A.1 verification checklist
 
 ## Key Docs (all in this repo)
-- **Design Spec:** `docs/specs/2026-03-29-rambling-guardian-design.md` — full architecture, edge cases, all 5 phases
+- **Design Spec:** `docs/specs/2026-03-29-rambling-guardian-design.md` — original architecture (always-listening model, pre-D-pre)
+- **Triggered Activation Brief:** `docs/specs/2026-04-07-triggered-activation-design.md` — idle-by-default model, session triggers, standalone backlog, BLE session control
 - **Implementation Plan:** `docs/plans/2026-03-29-rambling-guardian-phase-a.md` — exact code for every task
 - **Full Roadmap:** `docs/plans/2026-04-01-full-product-roadmap.md` — Phases A.5 through F with ticket details
 - **Original Intake:** `docs/reference/original-intake.md` — founder call transcript/brief
@@ -123,7 +123,8 @@ npx expo install @expo/vector-icons               # add icons (not auto-included
 - **DESIGN.md**: exists at repo root — reference for all UI decisions (brand, colors, tokens, components)
 - **Session modes (C.5)**: deferred to Phase D — auto-detection needs speaker diarization; manual switching is ADHD-hostile
 - **Skeleton loaders**: use `Animated.loop` opacity pulse instead of `ActivityIndicator` for initial loads
-- **BLE GATT UUIDs**: `4A980001–4A98000A` (service + 9 characteristics) — see `config.h`
+- **BLE GATT UUIDs**: `4A980001–4A98000B` (service + 10 characteristics) — see `config.h`
+- **BLE Session Control**: `4A98000B` — Read+Write+Notify. Write 0x01=start session, 0x02=stop. Read/Notify: 0x00=idle, 0x01=active.
 - **PAUSE_THRESHOLD_MS**: 3000ms (tuned on device — 1200ms too sensitive, 5000ms too slow)
 
 ## IDE / Tooling Notes
@@ -139,11 +140,11 @@ npx expo install @expo/vector-icons               # add icons (not auto-included
 ## Module Patterns
 | Module | Init | Update | Pattern |
 |--------|------|--------|---------|
-| audio_input | Y | Y | I2S reader + VAD, exposes samples via audioGetLastSamples() |
+| audio_input | Y | Y | I2S reader + VAD, suspend/resume on mode change, re-calibrates on resume |
 | speech_timer | Y | Y | Event subscriber, tracks speech duration |
 | led_output | Y | Y | Event subscriber, LED animation loop, capture override → magenta |
 | button_input | Y | Y | GPIO poller, debounce, multi-tap detection |
-| mode_manager | Y | N | Event subscriber only (button → mode changes) |
+| mode_manager | Y | N | Event subscriber, session lifecycle (IDLE↔ACTIVE_SESSION), trigger validation |
 | battery_monitor | Y | Y | ADC poller, low battery events |
 | sd_card | Y | N | Init-only, exposes sdCardIsReady() utility |
 | wav_writer | N | N | Utility API — open/write/close, called by capture_mode |

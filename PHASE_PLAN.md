@@ -92,6 +92,47 @@ Living ticket tracker. Check off as completed.
 
 ---
 
+## Phase D-pre A — Triggered Activation Foundation
+
+### Firmware
+- [x] RG-DpA.1: New state machine — replace DeviceMode enum (IDLE/ACTIVE_SESSION/MANUAL_NOTE/DEEP_SLEEP + reserved slot for future PRESENTATION_COACH), add TriggerSource enum, add session events
+- [x] RG-DpA.2: Button trigger remap — single press toggles IDLE↔ACTIVE_SESSION, double press MANUAL_NOTE only from IDLE (ignored from ACTIVE), long press stops session then sleeps
+- [x] RG-DpA.3: Conditional main loop — audioInputUpdate/speechTimerUpdate gated on mode; add audioInputSuspend/Resume with re-calibration on resume
+- [x] RG-DpA.4: LED/haptic truth signals — IDLE dim white pulse every 5s, session start/stop haptic feedback, remove deprecated PRESENTATION LED behavior
+- [x] RG-DpA.5: BLE session control — add CHR_SESSION_CTRL (4A98000B) Read+Write+Notify; session stats reset on SESSION_STARTED not BLE connect
+
+### App
+- [x] RG-DpA.6: Type + store updates — new DeviceMode/TriggerSource/AppSessionState enums, deviceStore defaults to IDLE, add sessionState field, schema migration (trigger_source, session_type)
+- [x] RG-DpA.7: BLE session commands — startSession/stopSession on BLEService, SESSION_CTRL notifications, STARTING/STOPPING intermediate states with 3s timeout + retry
+- [x] RG-DpA.8: Session tracker decoupling — watch sessionState not connected, handle BLE disconnect mid-session
+- [x] RG-DpA.9: Session screen redesign — three states (not connected / connected+idle / connected+active), Start/End Session buttons, no disconnect on end
+
+### Quality
+- [x] RG-DpA.10: Tests + docs — TypeScript type check passes, 76 tests pass (8 suites), update CLAUDE.md + PHASE_PLAN.md
+
+---
+
+## Phase D-pre B — Standalone Backlog Foundation
+
+### Firmware
+- [ ] RG-DpB.1: Boot ID persistence — /RG/boot_id.bin with magic + monotonic counter, increment on each boot
+- [ ] RG-DpB.2: Backlog file — versioned /RG/backlog.bin with header (magic "RGBL", version, recordSize, recordCount), 32-byte SessionRecord with bootId + deviceSessionSequence + boot-relative timestamps
+- [ ] RG-DpB.3: Backlog operations — append on SESSION_STOPPED, corruption detection + .bak rename, compaction when >100 records and >50% synced, storage-full handling (EVENT_STORAGE_LOW, skip write, session still runs), no-SD-card graceful degradation
+- [ ] RG-DpB.4: BLE sync transport — add CHR_SYNC_DATA (4A98000C), manifest/request/ack/commit protocol with replay-safe (bootId, sequence) IDs
+
+### App
+- [ ] RG-DpB.5: Sync transport — new syncTransport.ts wiring BLE protocol into existing syncEngine scaffold, idempotent upsert keyed on (bootId, sequence), handles lost ack / failed commit / partial success
+- [ ] RG-DpB.6: Schema + timestamp anchoring — boot_id/device_sequence columns, per-boot time offset calculation on BLE connect, best-effort wall-clock for cross-boot sessions
+- [ ] RG-DpB.7: Transcript/retention placeholders — transcript, transcript_timestamps, audio_retention columns (empty for now, Phase D populates)
+
+### Quality
+- [ ] RG-DpB.8: Tests + docs — firmware backlog smoke tests, app sync tests (idempotent import, partial sync, cross-boot), update CLAUDE.md
+
+### Investigation (parallel, non-blocking)
+- [ ] RG-INV.1: Apple Watch shortcut feasibility — Shortcut→app intent→BLE write path, background BLE behavior, latency measurement, written findings doc only
+
+---
+
 ## Phase D.0 — Cloud Foundation + Sync Model
 
 - [ ] RG-D.0.1: Firestore for metadata
