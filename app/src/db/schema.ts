@@ -94,6 +94,10 @@ export async function migrateToV2(db: SQLiteDatabase): Promise<void> {
     `ALTER TABLE sessions ADD COLUMN session_type TEXT DEFAULT 'active_session'`,
     `ALTER TABLE sessions ADD COLUMN boot_id INTEGER`,
     `ALTER TABLE sessions ADD COLUMN device_sequence INTEGER`,
+    // D-pre B.7: transcript/retention placeholders (empty for now, Phase D populates)
+    `ALTER TABLE sessions ADD COLUMN transcript TEXT`,
+    `ALTER TABLE sessions ADD COLUMN transcript_timestamps TEXT`,
+    `ALTER TABLE sessions ADD COLUMN audio_retention TEXT DEFAULT 'transcript_only'`,
   ];
 
   for (const sql of migrations) {
