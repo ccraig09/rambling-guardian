@@ -79,6 +79,26 @@ void ledOutputUpdate() {
     return;
   }
 
+  // IDLE mode: dim white pulse every 5 seconds (MacBook sleep-light)
+  if (currentMode == MODE_IDLE) {
+    unsigned long cycle = now % 5000;
+    if (cycle < 1500) {
+      // Fade up over 1.5s
+      float t = (float)cycle / 1500.0;
+      uint8_t v = (uint8_t)(12 * t);  // max brightness 12 (very dim)
+      rgbLedWrite(PIN_NEOPIXEL, v, v, v);
+    } else if (cycle < 3000) {
+      // Fade down over 1.5s
+      float t = (float)(cycle - 1500) / 1500.0;
+      uint8_t v = (uint8_t)(12 * (1.0 - t));
+      rgbLedWrite(PIN_NEOPIXEL, v, v, v);
+    } else {
+      // Off for remaining 2s
+      rgbLedWrite(PIN_NEOPIXEL, 0, 0, 0);
+    }
+    return;
+  }
+
   if (currentMode == MODE_DEEP_SLEEP) {
     rgbLedWrite(PIN_NEOPIXEL, 0, 0, 0);
     return;
