@@ -16,6 +16,7 @@
  * Not implemented until the favorited column exists on the sessions table.
  */
 import { getExpiredSessions, updateRetention } from '../db/sessions';
+import { useSettingsStore } from '../stores/settingsStore';
 import { RetentionTier } from '../types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -28,12 +29,21 @@ export const RETENTION_DEFAULTS: Record<RetentionTier, number | null> = {
   [RetentionTier.FULL_AUDIO]: 7 * DAY_MS,
 };
 
+/** Get the effective retention window for a tier, using user settings when available. */
+function getRetentionWindow(tier: RetentionTier): number | null {
+  if (tier <= RetentionTier.TRANSCRIPT) return null;
+  const settings = useSettingsStore.getState();
+  if (tier === RetentionTier.ALERT_CLIPS) return settings.retentionTier3Days * DAY_MS;
+  if (tier === RetentionTier.FULL_AUDIO) return settings.retentionTier4Days * DAY_MS;
+  return RETENTION_DEFAULTS[tier];
+}
+
 /** Calculate retention_until for a given tier and session end time. */
 export function calculateRetentionUntil(
   tier: RetentionTier,
   endedAt: number,
 ): number | null {
-  const window = RETENTION_DEFAULTS[tier];
+  const window = getRetentionWindow(tier);
   if (window === null) return null;
   return endedAt + window;
 }
@@ -63,10 +73,9 @@ export async function runPruneNow(): Promise<number> {
 
   let pruned = 0;
   for (const session of expired) {
-    const newTier =
-      session.retentionTier === RetentionTier.FULL_AUDIO
-        ? RetentionTier.TRANSCRIPT
-        : RetentionTier.TRANSCRIPT;
+    // Tier 4 (full audio) → Tier 2 (transcript stays)
+    // Tier 3 (alert clips) → Tier 2 (transcript stays)
+    const newTier = RetentionTier.TRANSCRIPT;
 
     // TODO: When audio artifacts exist (Phase D), delete the actual files here
 

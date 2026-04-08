@@ -16,6 +16,7 @@ import {
   failSync,
 } from './syncEngine';
 import {
+  advanceToReceived,
   advanceToProcessed,
   advanceToAcked,
   advanceToCommitted,
@@ -122,6 +123,9 @@ export async function syncFromDevice(): Promise<number> {
       const startedAt = toWallClock(record.bootId, record.startedAtMsSinceBoot);
       const endedAt = toWallClock(record.bootId, record.endedAtMsSinceBoot);
       const durationMs = record.endedAtMsSinceBoot - record.startedAtMsSinceBoot;
+
+      // Mark received before upsert — captures BLE delivery timestamp
+      await advanceToReceived(sessionId);
 
       // Idempotent upsert
       await upsertDeviceSession({
