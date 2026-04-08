@@ -3,6 +3,7 @@
 #include "config.h"
 #include "speech_timer.h"
 #include "battery_monitor.h"
+#include "backlog.h"
 
 // NimBLE memory optimization — must be defined before NimBLEDevice.h
 // We only need peripheral + broadcaster (server), not central/observer (client)
@@ -10,7 +11,7 @@
 #define CONFIG_BT_NIMBLE_ROLE_CENTRAL_DISABLED
 #define CONFIG_BT_NIMBLE_ROLE_OBSERVER_DISABLED
 #define CONFIG_BT_NIMBLE_MAX_BONDS 1
-#define CONFIG_BT_NIMBLE_MAX_CCCDS 12   // 10 characteristics with CCCD
+#define CONFIG_BT_NIMBLE_MAX_CCCDS 14   // 11 characteristics with CCCD
 #define CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE 3072
 
 #include <NimBLEDevice.h>
@@ -53,6 +54,7 @@ static NimBLECharacteristic* chrThresholds = nullptr;
 static NimBLECharacteristic* chrModality = nullptr;
 static NimBLECharacteristic* chrDeviceInfo = nullptr;
 static NimBLECharacteristic* chrSessionCtrl = nullptr;
+static NimBLECharacteristic* chrSyncData = nullptr;
 
 // ============================================
 // Server Callbacks
@@ -182,11 +184,103 @@ class SessionCtrlWriteCallback : public NimBLECharacteristicCallbacks {
   }
 };
 
+class SyncDataWriteCallback : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* pChr, NimBLEConnInfo& connInfo) override {
+    const uint8_t* data = pChr->getValue().data();
+    size_t len = pChr->getValue().size();
+    if (len == 0) return;
+
+    uint8_t cmd = data[0];
+
+    switch (cmd) {
+      case 0x01: {
+        // Request manifest
+        uint16_t pending = backlogGetPendingCount();
+        uint32_t oldest = backlogGetOldestBootId();
+        uint32_t newest = backlogGetNewestBootId();
+
+        uint8_t resp[10];
+        resp[0] = pending & 0xFF;
+        resp[1] = (pending >> 8) & 0xFF;
+        resp[2] = oldest & 0xFF;
+        resp[3] = (oldest >> 8) & 0xFF;
+        resp[4] = (oldest >> 16) & 0xFF;
+        resp[5] = (oldest >> 24) & 0xFF;
+        resp[6] = newest & 0xFF;
+        resp[7] = (newest >> 8) & 0xFF;
+        resp[8] = (newest >> 16) & 0xFF;
+        resp[9] = (newest >> 24) & 0xFF;
+
+        chrSyncData->setValue(resp, 10);
+        chrSyncData->notify();
+        Serial.printf("[BLE Sync] Manifest: pending=%u oldest=%lu newest=%lu\n",
+                      pending, (unsigned long)oldest, (unsigned long)newest);
+        break;
+      }
+
+      case 0x02: {
+        // Request next pending record
+        SessionRecord record;
+        if (backlogGetNextPending(record)) {
+          // Send the 32-byte record as notification
+          chrSyncData->setValue((uint8_t*)&record, sizeof(SessionRecord));
+          chrSyncData->notify();
+          Serial.printf("[BLE Sync] Sent record boot=%lu seq=%u\n",
+                        (unsigned long)record.bootId, record.deviceSessionSequence);
+        } else {
+          // No more pending records
+          uint8_t resp = 0xFF;
+          chrSyncData->setValue(&resp, 1);
+          chrSyncData->notify();
+          Serial.println("[BLE Sync] No pending records");
+        }
+        break;
+      }
+
+      case 0x03: {
+        // Ack record: cmd(1) + bootId(4) + sequence(2) = 7 bytes
+        if (len >= 7) {
+          uint32_t bootId = data[1] | (data[2] << 8) | (data[3] << 16) | (data[4] << 24);
+          uint16_t seq = data[5] | (data[6] << 8);
+
+          bool ok = backlogAckRecord(bootId, seq);
+          uint8_t resp = ok ? 0x00 : 0x01;
+          chrSyncData->setValue(&resp, 1);
+          chrSyncData->notify();
+          Serial.printf("[BLE Sync] Ack boot=%lu seq=%u → %s\n",
+                        (unsigned long)bootId, seq, ok ? "OK" : "NOT FOUND");
+        }
+        break;
+      }
+
+      case 0x04: {
+        // Commit checkpoint
+        bool ok = backlogCommitCheckpoint();
+        uint8_t resp = ok ? 0x00 : 0x02;
+        chrSyncData->setValue(&resp, 1);
+        chrSyncData->notify();
+        Serial.printf("[BLE Sync] Commit checkpoint → %s\n", ok ? "OK" : "WRITE FAILED");
+
+        // Run compaction after successful commit
+        if (ok) {
+          backlogCompact();
+        }
+        break;
+      }
+
+      default:
+        Serial.printf("[BLE Sync] Unknown command: 0x%02X\n", cmd);
+        break;
+    }
+  }
+};
+
 static SensitivityWriteCallback sensitivityCb;
 static DeviceModeWriteCallback deviceModeCb;
 static ThresholdsWriteCallback thresholdsCb;
 static ModalityWriteCallback modalityCb;
 static SessionCtrlWriteCallback sessionCtrlCb;
+static SyncDataWriteCallback syncDataCb;
 
 // ============================================
 // Event Bus Callbacks
@@ -400,6 +494,15 @@ void bleOutputInit() {
   uint8_t initSessionCtrl = 0x00;  // starts idle
   chrSessionCtrl->setValue(initSessionCtrl);
   chrSessionCtrl->setCallbacks(&sessionCtrlCb);
+
+  // Sync Data (Read + Write + Notify) — backlog sync protocol
+  chrSyncData = pService->createCharacteristic(
+    BLE_CHR_SYNC_DATA,
+    NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY
+  );
+  uint8_t initSync = 0x00;
+  chrSyncData->setValue(&initSync, 1);
+  chrSyncData->setCallbacks(&syncDataCb);
 
   // Start service
   pService->start();
