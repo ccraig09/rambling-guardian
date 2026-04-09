@@ -168,3 +168,16 @@ export async function migrateToV4(db: SQLiteDatabase): Promise<void> {
     }
   }
 }
+
+export async function migrateToV5(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS known_speakers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_seen_at INTEGER,
+      session_count INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+}

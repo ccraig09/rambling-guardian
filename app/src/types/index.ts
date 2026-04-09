@@ -253,6 +253,16 @@ export interface VoiceProfile {
   updatedAt: number;
 }
 
+/** A named speaker in the persistent speaker library. */
+export interface KnownSpeaker {
+  id: number;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  lastSeenAt: number | null;
+  sessionCount: number;
+}
+
 export interface Exercise {
   id: string;
   category: ExerciseCategory;
