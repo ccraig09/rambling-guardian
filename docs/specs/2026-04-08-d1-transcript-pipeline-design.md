@@ -144,11 +144,15 @@ interface TranscriptSegment {
 
 ## Section 4: Lifecycle Coordination
 
+### activeSessionId ownership
+
+`sessionTracker` is the sole owner of `activeSessionId` in `sessionStore` — it sets the value when a session row is created and clears it when the session ends. `transcriptService` consumes this value as a read-only signal and never creates its own parallel session identity.
+
 ### Startup sequence
 
 1. Device session state → ACTIVE (via BLE SESSION_CTRL)
-2. `sessionTracker` creates/confirms session row → `activeSessionId` appears in `sessionStore`
-3. `transcriptService` observes `activeSessionId`, begins startup:
+2. `sessionTracker` creates/confirms session row → sets `activeSessionId` in `sessionStore`
+3. `transcriptService` observes `activeSessionId` (non-null), begins startup:
    - Set status → `starting`
    - Initialize mic capture
    - Open Deepgram WebSocket
@@ -192,7 +196,7 @@ Note: a future refinement could distinguish `failed` (attempted and errored) fro
 ## Section 6: Degradation Behavior
 
 - **No internet at session start:** Mic capture may or may not start (depends on whether we want local buffering). Deepgram connection fails. Status → `failed`. Session runs normally for VAD/alerts without transcript.
-- **WebSocket drops mid-session:** Status → `interrupted`. Mic capture stops (no point buffering without a destination in v1). All finalized segments so far are preserved in `transcriptStore`. On session end, whatever was captured gets persisted.
+- **WebSocket drops mid-session:** Status → `interrupted`. Mic capture stops and finalized segments so far are preserved in `transcriptStore`. On session end, whatever was captured gets persisted. This is an intentional v1 simplification — stopping capture on disconnect keeps the implementation simple. Future phases may attempt WebSocket reconnection or local audio buffering for later transcription, but D.1 keeps this simple on purpose.
 - **Mic permission denied:** Status → `failed`. Session runs without transcript.
 - **App backgrounded:** iOS suspends mic capture. On foreground return, if session is still active, attempt to restart mic + Deepgram. Gap in transcript is implicit (no segment covers that time range).
 
@@ -274,7 +278,7 @@ type TranscriptStatus =
 | `app/src/db/sessions.ts` | Add updateTranscript query |
 | `app/src/components/LiveTranscript.tsx` | **New** — live transcript UI component |
 | `app/app/(tabs)/session.tsx` | Integrate LiveTranscript component |
-| `app/.env` | Add DEEPGRAM_API_KEY |
+| `app/.env` | Add DEEPGRAM_API_KEY (prototyping only — see note below) |
 | `app/package.json` | Add react-native-live-audio-stream (if validated), @deepgram/sdk (if compatible) |
 
 ## Section 10: Revised D.1 Ticket Breakdown
@@ -288,6 +292,10 @@ type TranscriptStatus =
 | D.1.4 | LiveTranscript component + session screen integration |
 | D.1.5 | Degradation handling (interrupted/failed states) |
 | D.1.6 | Docs update (PHASE_PLAN.md, CLAUDE.md) |
+
+## API Key Security Note
+
+D.1 stores `DEEPGRAM_API_KEY` directly in `app/.env` and uses it client-side. This is acceptable for D.1 prototyping only — it is not the intended long-term production security model. A future phase should move Deepgram authentication behind a backend token relay or server-mediated approach so the API key is never embedded in the app binary. Do not block D.1 on this, but do not ship to TestFlight with a raw client-side key without revisiting.
 
 ## Cost Estimate
 
