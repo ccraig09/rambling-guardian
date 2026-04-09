@@ -77,6 +77,12 @@ retentionService.ts enforces. `runPruneNow()` for manual trigger. `startRetentio
 Favorited session exemption deferred until favorited column exists.
 SyncTarget type in syncTarget.ts documents future cloud adapter contract — not implemented in D.0.
 
+### Transcript Pipeline (Phase D.1)
+Phone mic captures audio via `react-native-live-audio-stream` during active sessions (16kHz/mono/16-bit PCM). Audio streams to Deepgram Nova-3 over raw WebSocket (`Authorization: Token` header — query param does NOT work). Live transcript appears in session screen via `transcriptStore` (Zustand). On session end, finalized plain text + structured segment JSON persisted to sessions table (`transcript`, `transcript_timestamps` columns). Retention tier auto-promoted to TRANSCRIPT.
+`transcriptService.ts` orchestrates the pipeline, consuming `activeSessionId` from `sessionStore` (set by `sessionTracker`). `deepgramClient.ts` wraps the Deepgram WebSocket. `transcriptStore.ts` holds reactive UI state (segments, interim text, status).
+API key (`EXPO_PUBLIC_DEEPGRAM_API_KEY`) is client-side for prototyping only — move behind backend auth before production.
+Degradation: if WebSocket drops, status → `interrupted`, preserve existing transcript, stop capture (intentional v1 simplification).
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 
@@ -153,6 +159,9 @@ npx expo install @expo/vector-icons               # add icons (not auto-included
 - **BLE Session Control**: `4A98000B` — Read+Write+Notify. Write 0x01=start session, 0x02=stop. Read/Notify: 0x00=idle, 0x01=active.
 - **BLE Sync Data**: `4A98000C` — Read+Write+Notify. Backlog sync protocol: 0x01=manifest, 0x02=next record, 0x03=ack, 0x04=commit.
 - **PAUSE_THRESHOLD_MS**: 3000ms (tuned on device — 1200ms too sensitive, 5000ms too slow)
+- **Deepgram API key**: `EXPO_PUBLIC_DEEPGRAM_API_KEY` env var. Client-side prototyping only — do not ship to TestFlight without reviewing security model.
+- **react-native-live-audio-stream**: requires EAS build (not Expo Go). 16kHz/mono/16-bit PCM. `wavFile: ''` required in init options (unused — streaming to Deepgram).
+- **Deepgram WebSocket auth**: must use `Authorization: Token KEY` header. Token query param does NOT work on iOS RN 0.81.
 
 ## IDE / Tooling Notes
 - **LSP diagnostics are always false positives** — clang has no Arduino headers; `Serial`, `millis()`, `I2SClass` etc. always show as errors in the IDE. Ignore them. `arduino-cli compile` is the only truth.

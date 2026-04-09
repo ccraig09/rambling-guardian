@@ -150,7 +150,7 @@ Living ticket tracker. Check off as completed.
 
 ## Phase D — Transcription + AI Coaching
 
-- [ ] RG-D.1: Transcript pipeline foundation — BLE audio streaming (16kHz PCM) to app, Deepgram Nova-3 STT integration, live transcript display, VAD-gated to avoid idle STT cost
+- [x] RG-D.1: Transcript pipeline foundation — phone mic capture via react-native-live-audio-stream, Deepgram Nova-3 WebSocket streaming STT, live transcript display, session-driven (not VAD-gated in v1), plain text + structured segment persistence
 - [ ] RG-D.2: Voice enrollment + speaker attribution foundation — match Carlos's voice embedding (from Phase C trainer) to auto-label "Me", other speakers as "Speaker 1/2/…", speaker embedding storage
 - [ ] RG-D.3: Speaker-aware transcript handling / diarization-ready processing — real-time speaker labeling in transcript, "New voice detected" prompts, speaker library with return-visitor matching, name editing
 - [ ] RG-D.4: Context classification — detect solo / couple / meeting / presentation / background noise from speaker count + patterns, mode-aware coaching (only coach YOUR speech in meetings)
