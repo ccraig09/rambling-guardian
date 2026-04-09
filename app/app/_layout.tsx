@@ -10,6 +10,7 @@ import { fonts } from '../src/theme/typography';
 import { useTheme } from '../src/theme/theme';
 import { sessionTracker } from '../src/services/sessionTracker';
 import { transcriptService } from '../src/services/transcriptService';
+import { ensureProfileExists } from '../src/services/voiceProfileService';
 import {
   requestNotificationPermission,
   scheduleDailyExerciseReminder,
@@ -33,6 +34,7 @@ export default function RootLayout() {
       .then(async () => {
         sessionTracker.start();
         transcriptService.start();
+        ensureProfileExists().catch(console.warn); // best-effort, non-blocking
         // Request permission then schedule (or skip) the daily reminder
         const { notificationsEnabled: enabled } = useSettingsStore.getState();
         const granted = await requestNotificationPermission();
