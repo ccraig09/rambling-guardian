@@ -265,6 +265,19 @@ export async function getSyncStats(): Promise<{
 // Retention queries (D.0)
 // -------------------------------------------------------------------
 
+/** Update transcript and timestamps for a session. */
+export async function updateTranscript(
+  sessionId: string,
+  transcript: string,
+  transcriptTimestamps: string,
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `UPDATE sessions SET transcript = ?, transcript_timestamps = ? WHERE id = ?`,
+    [transcript, transcriptTimestamps, sessionId],
+  );
+}
+
 /** Update retention tier and deadline for a session. */
 export async function updateRetention(
   sessionId: string,
