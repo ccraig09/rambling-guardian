@@ -187,6 +187,8 @@ getProfileStatus(): Promise<'none' | 'enrolled' | 'needs_embedding' | 'ready'>
 
 Called at app startup and after onboarding. D.2 implementation is simple — just creates the profile row. D.3 extends with embedding generation.
 
+**Startup behavior:** `ensureProfileExists()` at app startup is best-effort, error-tolerant, and must not block app rendering, navigation, or startup. Call it fire-and-forget (`.catch(console.warn)`). If it fails at startup, fallback triggers (onboarding completion, first relevant session start) still cover profile creation.
+
 ### No changes to transcriptStore
 
 Speaker labels flow through `TranscriptSegment.speaker` (raw diarized label). Display name resolution happens at render time in `LiveTranscript`. The store doesn't need to know about speaker mappings.
@@ -203,7 +205,7 @@ speaker: data.channel?.alternatives?.[0]?.words?.[0]?.speaker != null
   : null,
 ```
 
-Deepgram puts the speaker integer on each word. Use the first word's speaker as the segment-level speaker.
+Deepgram puts the speaker integer on each word. Ideally, choose the dominant speaker across the segment's words (most frequently occurring speaker label). If that adds complexity to the first implementation, first-word speaker is an acceptable fallback simplification — but the code should document it as a simplification, not the ideal interpretation.
 
 ### transcriptService.ts Changes
 
