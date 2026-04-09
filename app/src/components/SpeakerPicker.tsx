@@ -1,10 +1,15 @@
 /**
- * SpeakerPicker — bottom-sheet modal for reassigning a speaker identity.
+ * SpeakerPicker — bottom-sheet modal for assigning a speaker identity.
+ *
+ * Shows: "Me" | library names (past sessions, recency order) | custom input.
+ * Library names already used in this session are deduplicated.
+ * Saves confirmed names to the cross-session speaker library.
  */
 import { useState } from 'react';
 import { View, Text, Pressable, TextInput, Modal, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { speakerService } from '../services/speakerService';
+import { speakerLibraryService } from '../services/speakerLibraryService';
 import { useSpeakerStore } from '../stores/speakerStore';
 
 interface Props {
@@ -18,23 +23,31 @@ export function SpeakerPicker({ diarizedLabel, visible, onClose }: Props) {
   const mappings = useSpeakerStore((s) => s.mappings);
   const [customName, setCustomName] = useState('');
 
-  // Collect existing display names for quick selection
-  const existingNames = new Set<string>();
-  existingNames.add('Me');
-  for (const m of Object.values(mappings)) {
-    if (m.displayName !== 'Me') existingNames.add(m.displayName);
-  }
+  // Display names already used in this session (excluding "Me")
+  const sessionNames = new Set<string>(
+    Object.values(mappings)
+      .map((m) => m.displayName)
+      .filter((n) => n !== 'Me'),
+  );
 
-  function handleSelect(name: string) {
+  // Library names ordered by recency, deduped against session names
+  const libraryNames = speakerLibraryService
+    .getLibraryNames()
+    .filter((n) => !sessionNames.has(n));
+
+  function confirmName(name: string) {
     speakerService.reassignSpeaker(diarizedLabel, name);
+    if (name !== 'Me') {
+      speakerLibraryService.addSpeaker(name).catch(console.warn); // persist to library
+    }
     onClose();
   }
 
   function handleCustomSubmit() {
-    if (customName.trim()) {
-      speakerService.reassignSpeaker(diarizedLabel, customName.trim());
+    const trimmed = customName.trim();
+    if (trimmed) {
+      confirmName(trimmed);
       setCustomName('');
-      onClose();
     }
   }
 
@@ -46,16 +59,26 @@ export function SpeakerPicker({ diarizedLabel, visible, onClose }: Props) {
             Who is {diarizedLabel}?
           </Text>
 
-          {[...existingNames].map((name) => (
+          {/* Always-first: Me */}
+          <Pressable
+            onPress={() => confirmName('Me')}
+            style={[styles.option, { borderColor: theme.colors.elevated, borderRadius: theme.radius.lg }]}
+          >
+            <Text style={[theme.type.body, { color: theme.text.primary }]}>Me</Text>
+          </Pressable>
+
+          {/* Library names: past speakers, most recently seen first */}
+          {libraryNames.map((name) => (
             <Pressable
               key={name}
-              onPress={() => handleSelect(name)}
+              onPress={() => confirmName(name)}
               style={[styles.option, { borderColor: theme.colors.elevated, borderRadius: theme.radius.lg }]}
             >
               <Text style={[theme.type.body, { color: theme.text.primary }]}>{name}</Text>
             </Pressable>
           ))}
 
+          {/* Custom name input */}
           <View style={[styles.customRow, { marginTop: theme.spacing.md }]}>
             <TextInput
               value={customName}
