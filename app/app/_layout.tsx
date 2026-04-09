@@ -9,6 +9,7 @@ import { exerciseData } from '../src/data/exercises';
 import { fonts } from '../src/theme/typography';
 import { useTheme } from '../src/theme/theme';
 import { sessionTracker } from '../src/services/sessionTracker';
+import { transcriptService } from '../src/services/transcriptService';
 import {
   requestNotificationPermission,
   scheduleDailyExerciseReminder,
@@ -31,6 +32,7 @@ export default function RootLayout() {
       .then(() => useSettingsStore.getState().hydrateFromDb())
       .then(async () => {
         sessionTracker.start();
+        transcriptService.start();
         // Request permission then schedule (or skip) the daily reminder
         const { notificationsEnabled: enabled } = useSettingsStore.getState();
         const granted = await requestNotificationPermission();
