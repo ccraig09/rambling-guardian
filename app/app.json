@@ -17,7 +17,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.ccraig09.ramblingguardian",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Rambling Guardian needs microphone access for voice training enrollment."
+        "NSMicrophoneUsageDescription": "Rambling Guardian uses the microphone for voice training enrollment and live session transcription."
       },
       "appleTeamId": "DWPND8BT67"
     },
