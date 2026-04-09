@@ -37,6 +37,7 @@ class SessionTracker {
       if (state.sessionState === AppSessionState.ACTIVE && this.sessionId === null) {
         try {
           this.sessionId = await createSession(state.sensitivity);
+          useSessionStore.getState().setActiveSessionId(this.sessionId);
           this.sessionStartMs = Date.now();
           this.lastAlertLevel = AlertLevel.NONE;
           this._alertCount = 0;
@@ -53,6 +54,7 @@ class SessionTracker {
       if (state.sessionState === AppSessionState.NO_SESSION && this.sessionId !== null) {
         const id = this.sessionId;
         this.sessionId = null;
+        useSessionStore.getState().setActiveSessionId(null);
         try {
           const durationMs = Date.now() - this.sessionStartMs;
           await finalizeSession(

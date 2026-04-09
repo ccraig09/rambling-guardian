@@ -4,6 +4,8 @@ import { SyncPhase } from '../types';
 
 interface SessionStore {
   activeSession: Session | null;
+  activeSessionId: string | null;
+  setActiveSessionId: (id: string | null) => void;
   mode: SessionMode;
   setMode: (mode: SessionMode) => void;
   startSession: (session: Session) => void;
@@ -23,6 +25,8 @@ interface SessionStore {
 
 export const useSessionStore = create<SessionStore>((set) => ({
   activeSession: null,
+  activeSessionId: null,
+  setActiveSessionId: (id) => set({ activeSessionId: id }),
   mode: 'solo',
   setMode: (mode) => set({ mode }),
   startSession: (session) => set({ activeSession: session }),
