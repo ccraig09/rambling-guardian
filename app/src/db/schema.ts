@@ -137,3 +137,34 @@ export async function migrateToV3(db: SQLiteDatabase): Promise<void> {
     `UPDATE sessions SET sync_status = 'committed', committed_at = ended_at WHERE synced_from_device = 1 AND sync_status IS NULL`,
   );
 }
+
+export async function migrateToV4(db: SQLiteDatabase): Promise<void> {
+  // Voice profiles table
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS voice_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      label TEXT NOT NULL DEFAULT 'Me',
+      status TEXT NOT NULL DEFAULT 'enrolled',
+      enrolled_sample_ids TEXT NOT NULL,
+      embedding_data BLOB,
+      embedding_model TEXT,
+      embedding_version TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
+  // Speaker map column on sessions
+  const migrations = [
+    `ALTER TABLE sessions ADD COLUMN speaker_map TEXT`,
+  ];
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch (e: any) {
+      if (!e.message?.includes('duplicate column')) {
+        throw e;
+      }
+    }
+  }
+}
