@@ -11,6 +11,7 @@ import { useTheme } from '../src/theme/theme';
 import { sessionTracker } from '../src/services/sessionTracker';
 import { transcriptService } from '../src/services/transcriptService';
 import { ensureProfileExists } from '../src/services/voiceProfileService';
+import { speakerLibraryService } from '../src/services/speakerLibraryService';
 import {
   requestNotificationPermission,
   scheduleDailyExerciseReminder,
@@ -35,6 +36,7 @@ export default function RootLayout() {
         sessionTracker.start();
         transcriptService.start();
         ensureProfileExists().catch(console.warn); // best-effort, non-blocking
+        speakerLibraryService.loadLibrary().catch(console.warn); // best-effort, non-blocking
         // Request permission then schedule (or skip) the daily reminder
         const { notificationsEnabled: enabled } = useSettingsStore.getState();
         const granted = await requestNotificationPermission();
