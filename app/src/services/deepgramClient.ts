@@ -15,7 +15,7 @@ export interface DeepgramConnection {
   onTranscript(cb: (segment: TranscriptSegment) => void): () => void;
   onError(cb: (error: string) => void): () => void;
   onOpen(cb: () => void): () => void;
-  onClose(cb: () => void): () => void;
+  onClose(cb: (code?: number, reason?: string) => void): () => void;
   close(): void;
   isOpen(): boolean;
 }
@@ -27,7 +27,7 @@ export function createDeepgramConnection(
   const transcriptListeners: Array<(seg: TranscriptSegment) => void> = [];
   const errorListeners: Array<(error: string) => void> = [];
   const openListeners: Array<() => void> = [];
-  const closeListeners: Array<() => void> = [];
+  const closeListeners: Array<(code?: number, reason?: string) => void> = [];
 
   const params = new URLSearchParams(DEEPGRAM_DEFAULTS);
   const url = `wss://api.deepgram.com/v1/listen?${params.toString()}`;
@@ -50,7 +50,7 @@ export function createDeepgramConnection(
   ws.onopen = () => {
     keepaliveInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(new ArrayBuffer(0));
+        ws.send(JSON.stringify({ type: 'KeepAlive' }));
       }
     }, 8000);
     openListeners.forEach((cb) => cb());
@@ -119,9 +119,9 @@ export function createDeepgramConnection(
     errorListeners.forEach((cb) => cb(msg));
   };
 
-  ws.onclose = () => {
+  ws.onclose = (event: any) => {
     if (keepaliveInterval) clearInterval(keepaliveInterval);
-    closeListeners.forEach((cb) => cb());
+    closeListeners.forEach((cb) => cb(event?.code, event?.reason));
   };
 
   function addListener<T>(list: T[], cb: T): () => void {

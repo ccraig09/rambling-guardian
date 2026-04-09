@@ -25,6 +25,7 @@ class TranscriptService {
   private activeSessionId: string | null = null;
   private sessionStartMs: number = 0;
   private micInitialized = false;
+  private firstTranscriptLogged = false;
 
   start() {
     if (this.unsubscribeStore) return; // already started
@@ -57,9 +58,11 @@ class TranscriptService {
     store.reset();
     speakerService.reset();
     store.setStatus('starting');
+    console.log(`[TranscriptService] Session became active: ${sessionId}`);
 
     // Check API key
     if (!DEEPGRAM_API_KEY) {
+      console.warn('[TranscriptService] No Deepgram API key — aborting');
       store.setError('Deepgram API key not configured');
       return;
     }
@@ -76,13 +79,26 @@ class TranscriptService {
           wavFile: '', // Required by types; streaming to Deepgram, no WAV needed
         });
         this.micInitialized = true;
+        console.log('[TranscriptService] Mic initialized');
       }
 
+      // Remove stale listeners from any previous session
+      try { LiveAudioStream.stop(); } catch { /* ignore if not started */ }
+      (LiveAudioStream as any).removeAllListeners?.('data');
+
       // Open Deepgram connection
+      console.log('[TranscriptService] Opening Deepgram WebSocket...');
       this.connection = createDeepgramConnection(DEEPGRAM_API_KEY, this.sessionStartMs);
+
+      let chunkCount = 0;
 
       // Wire transcript events to store
       this.connection.onTranscript((segment: TranscriptSegment) => {
+        if (chunkCount > 0 && !this.firstTranscriptLogged) {
+          console.log(`[TranscriptService] First transcript received: "${segment.text.substring(0, 40)}..." (final=${segment.isFinal}, speaker=${segment.speaker})`);
+          this.firstTranscriptLogged = true;
+        }
+
         // Notify speaker service of new speakers
         if (segment.speaker) {
           speakerService.handleNewSpeaker(segment.speaker);
@@ -103,7 +119,8 @@ class TranscriptService {
         try { LiveAudioStream.stop(); } catch { /* ignore */ }
       });
 
-      this.connection.onClose(() => {
+      this.connection.onClose((code?: number, reason?: string) => {
+        console.log(`[TranscriptService] WebSocket closed: code=${code}, reason=${reason ?? 'none'}, chunks sent=${chunkCount}`);
         const currentStatus = useTranscriptStore.getState().status;
         // Only mark interrupted if we didn't initiate the close
         if (currentStatus === 'streaming') {
@@ -114,19 +131,32 @@ class TranscriptService {
 
       // Wait for WebSocket to open, then start mic
       this.connection.onOpen(() => {
+        console.log('[TranscriptService] WebSocket open — starting mic');
         useTranscriptStore.getState().setStatus('streaming');
 
         // Pipe mic audio to Deepgram
         LiveAudioStream.on('data', (base64: string) => {
           if (this.connection?.isOpen()) {
             const chunk = Buffer.from(base64, 'base64');
-            this.connection.sendAudio(chunk.buffer);
+            // Slice to get only decoded bytes — Buffer.buffer returns the
+            // entire backing ArrayBuffer from the pool, not just our data.
+            const audio = chunk.buffer.slice(
+              chunk.byteOffset,
+              chunk.byteOffset + chunk.byteLength,
+            );
+            this.connection.sendAudio(audio);
+            chunkCount++;
+            if (chunkCount === 1) {
+              console.log(`[TranscriptService] First audio chunk: ${chunk.byteLength} bytes sent to Deepgram`);
+            }
           }
         });
 
         LiveAudioStream.start();
+        console.log('[TranscriptService] Mic started');
       });
     } catch (error) {
+      console.warn('[TranscriptService] startTranscription error:', error);
       const msg = error instanceof Error ? error.message : 'Failed to start transcription';
       useTranscriptStore.getState().setError(msg);
     }
@@ -135,9 +165,13 @@ class TranscriptService {
   private async stopTranscription() {
     const sessionId = this.activeSessionId;
     this.activeSessionId = null;
+    this.firstTranscriptLogged = false;
 
-    // Stop mic
-    try { LiveAudioStream.stop(); } catch { /* ignore */ }
+    // Stop mic and remove data listener to prevent accumulation
+    try {
+      LiveAudioStream.stop();
+      (LiveAudioStream as any).removeAllListeners?.('data');
+    } catch { /* ignore */ }
 
     // Close Deepgram (graceful — may flush final transcript)
     if (this.connection) {
