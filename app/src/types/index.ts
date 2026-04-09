@@ -191,6 +191,38 @@ export interface SessionSyncInfo {
   deviceSequence: number | null;
 }
 
+// ============================================
+// Transcript Types (D.1)
+// ============================================
+
+/** A finalized transcript segment from Deepgram. */
+export interface TranscriptSegment {
+  text: string;
+  start: number;           // ms from session start
+  end: number;             // ms from session start
+  isFinal: boolean;
+  speaker: string | null;  // null in D.1, populated by D.2
+  words?: TranscriptWord[];
+}
+
+/** Word-level timing from Deepgram. */
+export interface TranscriptWord {
+  word: string;
+  start: number;           // ms from session start
+  end: number;             // ms from session start
+  confidence: number;
+}
+
+/** Transcript pipeline status. */
+export type TranscriptStatus =
+  | 'idle'
+  | 'starting'
+  | 'streaming'
+  | 'interrupted'
+  | 'failed'
+  | 'finalizing'
+  | 'complete';
+
 export interface Exercise {
   id: string;
   category: ExerciseCategory;
