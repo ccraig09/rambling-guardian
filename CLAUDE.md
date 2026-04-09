@@ -83,6 +83,13 @@ Phone mic captures audio via `react-native-live-audio-stream` during active sess
 API key (`EXPO_PUBLIC_DEEPGRAM_API_KEY`) is client-side for prototyping only — move behind backend auth before production.
 Degradation: if WebSocket drops, status → `interrupted`, preserve existing transcript, stop capture (intentional v1 simplification).
 
+### Speaker Attribution (Phase D.2)
+Deepgram diarization (`diarize: true`) assigns speaker labels per word. `deepgramClient.ts` picks the dominant speaker per segment. `TranscriptSegment.speaker` holds the raw diarized label ("Speaker 0") — never mutated with display names.
+`speakerService.ts` manages per-session mappings: diarized label → display name + confidence (provisional/user_confirmed). Default "Me" assignment is conditional: 1-2 speakers only, generic labels for 3+.
+`speakerStore.ts` (Zustand) holds reactive mapping state. `LiveTranscript` resolves display names at render time. Tap speaker label → `SpeakerPicker` modal for correction.
+`speaker_map TEXT` column on sessions table persists final mappings as JSON on session end.
+`voice_profiles` table stores enrollment data (sample references, NULL embedding in D.2). `voiceProfileService.ensureProfileExists()` runs at startup (non-blocking, best-effort).
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 
