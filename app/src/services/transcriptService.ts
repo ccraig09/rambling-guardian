@@ -17,6 +17,7 @@ import { DEEPGRAM_API_KEY } from '../config/deepgram';
 import { updateTranscript, updateRetention } from '../db/sessions';
 import { RetentionTier } from '../types';
 import type { TranscriptSegment } from '../types';
+import { speakerService } from './speakerService';
 
 class TranscriptService {
   private unsubscribeStore: (() => void) | null = null;
@@ -54,6 +55,7 @@ class TranscriptService {
   private async startTranscription(sessionId: string) {
     const store = useTranscriptStore.getState();
     store.reset();
+    speakerService.reset();
     store.setStatus('starting');
 
     // Check API key
@@ -81,6 +83,11 @@ class TranscriptService {
 
       // Wire transcript events to store
       this.connection.onTranscript((segment: TranscriptSegment) => {
+        // Notify speaker service of new speakers
+        if (segment.speaker) {
+          speakerService.handleNewSpeaker(segment.speaker);
+        }
+
         if (segment.isFinal) {
           useTranscriptStore.getState().addFinalSegment(segment);
         } else {
@@ -147,6 +154,7 @@ class TranscriptService {
         const segmentsJson = JSON.stringify(segments);
         await updateTranscript(sessionId, plainText, segmentsJson);
         await updateRetention(sessionId, RetentionTier.TRANSCRIPT, null);
+        await speakerService.persistToSession(sessionId);
         useTranscriptStore.getState().setStatus('complete');
       } catch (error) {
         console.warn('[TranscriptService] Failed to persist transcript:', error);
