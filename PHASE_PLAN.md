@@ -185,6 +185,25 @@ Living ticket tracker. Check off as completed.
 
 ---
 
+## Product Direction — Device-First, Phone-Optional
+
+D.1 phone-mic transcription is a **bridge capability**, not the final product identity. It proves the transcript pipeline, persistence, live UI, and Deepgram integration. That work stays.
+
+**Long-term product vision remains device-first, phone-optional, sync-later capable:**
+- Device must eventually start and run meaningful sessions without the phone present
+- Phone is a companion / enrichment tool, not the only way the product is useful
+- If device is used alone in a meeting, it should later sync meaningful data to the phone
+- Transcript / summaries / AI processing may happen after sync if needed
+- Live phone transcription is a mode, not the only mode
+
+**Future required direction** (not yet scheduled):
+- [ ] Device-first standalone capture + sync-later enrichment — standalone session capture on device, later phone sync of metadata and/or recorded artifacts, transcript generation after sync, speaker-aware enrichment after sync, useful workflow even when phone was not present during conversation
+- [ ] Device must earn its place beyond: button for the phone, vibration accessory, phone recorder companion. Move toward: device starts session, device can be used alone, phone enriches later, AI/transcript/summary can happen after sync.
+
+**Do not assume "phone present for transcript" is the permanent product model in any future phase design.**
+
+---
+
 ## Post-Launch — Follow-up Tasks
 
 Deferred improvements to revisit after all phases ship.
