@@ -37,6 +37,20 @@ jest.mock('../../db/settings', () => ({
   loadAllSettings: jest.fn(async () => new Map()),
 }));
 
+jest.mock('../speakerService', () => ({
+  speakerService: {
+    reset: jest.fn(),
+    handleNewSpeaker: jest.fn(),
+    persistToSession: jest.fn(async () => {}),
+  },
+}));
+
+jest.mock('../speakerLibraryService', () => ({
+  speakerLibraryService: {
+    markSeenInSession: jest.fn(async () => {}),
+  },
+}));
+
 beforeEach(() => {
   useTranscriptStore.getState().reset();
   useSessionStore.setState({ activeSessionId: null });

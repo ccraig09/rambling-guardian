@@ -18,6 +18,8 @@ import { updateTranscript, updateRetention } from '../db/sessions';
 import { RetentionTier } from '../types';
 import type { TranscriptSegment } from '../types';
 import { speakerService } from './speakerService';
+import { speakerLibraryService } from './speakerLibraryService';
+import { useSpeakerStore } from '../stores/speakerStore';
 
 class TranscriptService {
   private unsubscribeStore: (() => void) | null = null;
@@ -189,6 +191,19 @@ class TranscriptService {
         await updateTranscript(sessionId, plainText, segmentsJson);
         await updateRetention(sessionId, RetentionTier.TRANSCRIPT, null);
         await speakerService.persistToSession(sessionId);
+
+        // D.3: sync confirmed speaker names to library (once per unique name per session)
+        const { mappings } = useSpeakerStore.getState();
+        const confirmedNames = new Set<string>();
+        for (const m of Object.values(mappings)) {
+          if (m.confidence === 'user_confirmed' && m.displayName !== 'Me') {
+            confirmedNames.add(m.displayName);
+          }
+        }
+        for (const name of confirmedNames) {
+          await speakerLibraryService.markSeenInSession(name);
+        }
+
         useTranscriptStore.getState().setStatus('complete');
       } catch (error) {
         console.warn('[TranscriptService] Failed to persist transcript:', error);
