@@ -223,6 +223,36 @@ export type TranscriptStatus =
   | 'finalizing'
   | 'complete';
 
+// ============================================
+// Speaker + Voice Profile Types (D.2)
+// ============================================
+
+/** Confidence level for a speaker identity mapping. */
+export type SpeakerConfidence = 'provisional' | 'user_confirmed';
+
+/** Maps a raw Deepgram diarized label to a display identity. */
+export interface SpeakerMapping {
+  diarizedLabel: string;         // "Speaker 0" — raw from Deepgram, immutable
+  displayName: string;           // "Me", "Speaker 1", or user-assigned name
+  confidence: SpeakerConfidence;
+}
+
+/** Voice profile status. */
+export type VoiceProfileStatus = 'enrolled' | 'needs_embedding' | 'ready';
+
+/** Voice profile — created from onboarding enrollment samples. */
+export interface VoiceProfile {
+  id: number;
+  label: string;                  // "Me"
+  status: VoiceProfileStatus;
+  enrolledSampleIds: number[];    // voice_samples IDs
+  embeddingData: null;            // NULL in D.2, populated by D.3
+  embeddingModel: string | null;
+  embeddingVersion: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Exercise {
   id: string;
   category: ExerciseCategory;

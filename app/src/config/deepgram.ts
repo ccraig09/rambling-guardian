@@ -16,4 +16,5 @@ export const DEEPGRAM_DEFAULTS = {
   encoding: 'linear16',
   sample_rate: '16000',
   channels: '1',
+  diarize: 'true',
 } as const;
