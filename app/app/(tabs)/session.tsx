@@ -9,6 +9,11 @@
  *
  * "End Session" stops monitoring but keeps the BLE connection alive.
  */
+// *** TEMPORARY SPIKE — remove after D.1 validation ***
+import TranscriptSpike from '../../src/spike/TranscriptSpike';
+const USE_SPIKE = false; // flip to false to restore normal session screen
+// *** END SPIKE ***
+import { LiveTranscript } from '../../src/components/LiveTranscript';
 import {
   View,
   Text,
@@ -71,6 +76,10 @@ const ALERT_LEVEL_NAMES: Record<number, string> = {
 // ---------------------------------------------------------------------------
 
 export default function SessionScreen() {
+  // *** TEMPORARY SPIKE — remove after D.1 validation ***
+  if (USE_SPIKE) return <TranscriptSpike />;
+  // *** END SPIKE ***
+
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const deviceState = useDeviceState();
@@ -398,6 +407,11 @@ export default function SessionScreen() {
                   theme={theme}
                 />
               </View>
+            </View>
+
+            {/* -- Live Transcript -- */}
+            <View style={{ marginTop: theme.spacing.lg }}>
+              <LiveTranscript />
             </View>
 
             {/* -- Device Info Row -- */}
