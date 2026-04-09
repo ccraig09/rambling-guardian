@@ -12,6 +12,7 @@
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
+    "buffer": "^6.0.3",
     "expo": "~54.0.33",
     "expo-audio": "~1.1.1",
     "expo-constants": "~18.0.13",
@@ -29,6 +30,7 @@
     "react-native": "0.81.5",
     "react-native-ble-plx": "^3.5.1",
     "react-native-gesture-handler": "~2.28.0",
+    "react-native-live-audio-stream": "^1.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "zustand": "^5.0.12"
