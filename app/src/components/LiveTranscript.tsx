@@ -27,6 +27,13 @@ export function LiveTranscript() {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [segments.length, interimText]);
 
+  // Diagnostic: confirm transcript data reaches the component
+  useEffect(() => {
+    if (status === 'streaming') {
+      console.log(`[LiveTranscript] render: status=${status}, segments=${segments.length}, interim="${interimText?.substring(0, 30) ?? ''}"`);
+    }
+  }, [status, segments.length, interimText]);
+
   const handleSpeakerTap = useCallback((diarizedLabel: string) => {
     setPickerLabel(diarizedLabel);
   }, []);
@@ -130,6 +137,7 @@ export function LiveTranscript() {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
+    minHeight: 120,
     maxHeight: 280,
   },
   headerRow: {
@@ -144,7 +152,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   scroll: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
   },
   speakerLabel: {
     marginTop: 8,
