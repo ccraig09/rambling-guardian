@@ -152,7 +152,7 @@ Living ticket tracker. Check off as completed.
 
 - [x] RG-D.1: Transcript pipeline foundation — phone mic capture via react-native-live-audio-stream, Deepgram Nova-3 WebSocket streaming STT, live transcript display, session-driven (not VAD-gated in v1), plain text + structured segment persistence
 - [x] RG-D.2: Voice enrollment + speaker attribution foundation ✅ COMPLETE — Deepgram diarization, speaker label resolution, mappings UI, voice profile storage
-- [ ] RG-D.3: Speaker-aware transcript handling / diarization-ready processing — real-time speaker labeling in transcript, "New voice detected" prompts, speaker library with return-visitor matching, name editing
+- [x] RG-D.3: Speaker library + naming — `known_speakers` table, `speakerLibraryService`, NewSpeakerBanner inline prompt, library-enhanced SpeakerPicker, session-end library sync *(implemented, pending verification)*
 - [ ] RG-D.4: Context classification — detect solo / couple / meeting / presentation / background noise from speaker count + patterns, mode-aware coaching (only coach YOUR speech in meetings)
 - [ ] RG-D.5: Coaching engine — filler detection, pacing analysis, interruption patterns, overlong runs, reflection prompts, "Catch me up" summaries, "Draft a question" feature
 - [ ] RG-D.6: Post-session summaries + insights — Claude Sonnet summaries, rambling highlights, action items, improvement trends vs previous sessions, context-aware templates per mode

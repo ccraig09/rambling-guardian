@@ -90,6 +90,14 @@ Deepgram diarization (`diarize: true`) assigns speaker labels per word. `deepgra
 `speaker_map TEXT` column on sessions table persists final mappings as JSON on session end.
 `voice_profiles` table stores enrollment data (sample references, NULL embedding in D.2). `voiceProfileService.ensureProfileExists()` runs at startup (non-blocking, best-effort).
 
+### Speaker Library (Phase D.3)
+`speakerLibraryService.ts` owns cross-session speaker identity — separate from `speakerService` (session-scoped). `known_speakers` table (migrateToV5): `id`, `name UNIQUE`, `created_at`, `updated_at`, `last_seen_at`, `session_count`.
+Name normalization: trim + collapse internal spaces + preserve casing. Applied on all writes. "Me" is never stored in the library.
+`loadLibrary()` runs at app startup (non-blocking, after DB init). All writes are DB-first — cache updates only on DB success to prevent divergence.
+`session_count` increments once per session at finalization (not per segment). Deduplicated via `Set` if multiple diarized labels map to the same name.
+`SpeakerPicker` shows library names (recency order) between "Me" and custom input. On confirm, calls both `speakerService.reassignSpeaker()` and `speakerLibraryService.addSpeaker()` (skips "Me").
+`NewSpeakerBanner` (presentational) shows inline pill in `LiveTranscript` when provisional non-"Me" speakers exist. Logic (unnamed count, tap target) lives in `LiveTranscript`. Unresolved speakers stay provisional in `speaker_map` if ignored during session — data ready for future post-session editing.
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 
