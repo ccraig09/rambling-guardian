@@ -278,6 +278,18 @@ export async function updateTranscript(
   );
 }
 
+/** Update speaker map for a session. */
+export async function updateSpeakerMap(
+  sessionId: string,
+  speakerMapJson: string,
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `UPDATE sessions SET speaker_map = ? WHERE id = ?`,
+    [speakerMapJson, sessionId],
+  );
+}
+
 /** Update retention tier and deadline for a session. */
 export async function updateRetention(
   sessionId: string,
