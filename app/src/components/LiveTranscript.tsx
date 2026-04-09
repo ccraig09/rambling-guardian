@@ -11,6 +11,7 @@ import { useTranscriptStore } from '../stores/transcriptStore';
 import { useSpeakerStore } from '../stores/speakerStore';
 import { speakerService } from '../services/speakerService';
 import { SpeakerPicker } from './SpeakerPicker';
+import { NewSpeakerBanner } from './NewSpeakerBanner';
 
 export function LiveTranscript() {
   const theme = useTheme();
@@ -19,7 +20,6 @@ export function LiveTranscript() {
   const interimText = useTranscriptStore((s) => s.interimText);
   // Subscribe to mappings so component re-renders when speaker names change
   const mappings = useSpeakerStore((s) => s.mappings);
-  void mappings;
   const scrollRef = useRef<ScrollView>(null);
   const [pickerLabel, setPickerLabel] = useState<string | null>(null);
 
@@ -37,6 +37,21 @@ export function LiveTranscript() {
   const handleSpeakerTap = useCallback((diarizedLabel: string) => {
     setPickerLabel(diarizedLabel);
   }, []);
+
+  // Count provisional speakers that aren't "Me" — these need naming
+  const unnamedCount = Object.values(mappings).filter(
+    (m) => m.confidence === 'provisional' && m.displayName !== 'Me',
+  ).length;
+
+  // Open SpeakerPicker for the first unnamed label (safe: no-op if none left)
+  const handleBannerPress = useCallback(() => {
+    const firstUnnamed = Object.entries(mappings).find(
+      ([, m]) => m.confidence === 'provisional' && m.displayName !== 'Me',
+    );
+    if (firstUnnamed) {
+      setPickerLabel(firstUnnamed[0]);
+    }
+  }, [mappings]);
 
   if (status === 'idle') return null;
 
@@ -75,6 +90,8 @@ export function LiveTranscript() {
           </Text>
         )}
       </View>
+
+      <NewSpeakerBanner unnamedCount={unnamedCount} onPress={handleBannerPress} />
 
       <ScrollView ref={scrollRef} style={styles.scroll} showsVerticalScrollIndicator={false}>
         {segments.map((seg, i) => {
