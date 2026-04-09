@@ -76,12 +76,35 @@ export function createDeepgramConnection(
           }))
         : undefined;
 
+      // Determine segment speaker from word-level diarization.
+      // Prefer dominant speaker across words; fall back to first word's speaker.
+      let speaker: string | null = null;
+      if (alt.words?.length) {
+        const speakerCounts = new Map<number, number>();
+        for (const w of alt.words) {
+          if (w.speaker != null) {
+            speakerCounts.set(w.speaker, (speakerCounts.get(w.speaker) ?? 0) + 1);
+          }
+        }
+        if (speakerCounts.size > 0) {
+          let maxCount = 0;
+          let dominantSpeaker = 0;
+          for (const [sp, count] of speakerCounts) {
+            if (count > maxCount) {
+              maxCount = count;
+              dominantSpeaker = sp;
+            }
+          }
+          speaker = `Speaker ${dominantSpeaker}`;
+        }
+      }
+
       const segment: TranscriptSegment = {
         text: alt.transcript,
         start: startMs,
         end: endMs,
         isFinal: data.is_final === true,
-        speaker: null, // D.2 adds speaker attribution
+        speaker,
         words,
       };
 

@@ -148,4 +148,83 @@ describe('deepgramClient', () => {
     conn.close();
     expect(ws.readyState).toBe(3);
   });
+
+  test('parses dominant speaker from word-level diarization', () => {
+    const conn = createDeepgramConnection('test-key');
+    const transcripts: any[] = [];
+    conn.onTranscript((seg) => transcripts.push(seg));
+
+    const ws = MockWebSocket.instances[0];
+    ws.simulateOpen();
+    ws.simulateMessage(JSON.stringify({
+      type: 'Results',
+      is_final: true,
+      channel: {
+        alternatives: [{
+          transcript: 'Hello world',
+          confidence: 0.98,
+          words: [
+            { word: 'Hello', start: 0.1, end: 0.4, confidence: 0.99, speaker: 0 },
+            { word: 'world', start: 0.5, end: 0.9, confidence: 0.97, speaker: 0 },
+          ],
+        }],
+      },
+      start: 0.1,
+      duration: 0.8,
+    }));
+
+    expect(transcripts[0].speaker).toBe('Speaker 0');
+  });
+
+  test('picks dominant speaker when words have mixed speakers', () => {
+    const conn = createDeepgramConnection('test-key');
+    const transcripts: any[] = [];
+    conn.onTranscript((seg) => transcripts.push(seg));
+
+    const ws = MockWebSocket.instances[0];
+    ws.simulateOpen();
+    ws.simulateMessage(JSON.stringify({
+      type: 'Results',
+      is_final: true,
+      channel: {
+        alternatives: [{
+          transcript: 'Hello world test',
+          confidence: 0.9,
+          words: [
+            { word: 'Hello', start: 0.1, end: 0.3, confidence: 0.9, speaker: 0 },
+            { word: 'world', start: 0.4, end: 0.6, confidence: 0.9, speaker: 1 },
+            { word: 'test', start: 0.7, end: 0.9, confidence: 0.9, speaker: 1 },
+          ],
+        }],
+      },
+      start: 0.1,
+      duration: 0.8,
+    }));
+
+    expect(transcripts[0].speaker).toBe('Speaker 1'); // 2 words vs 1
+  });
+
+  test('speaker is null when diarization not present on words', () => {
+    const conn = createDeepgramConnection('test-key');
+    const transcripts: any[] = [];
+    conn.onTranscript((seg) => transcripts.push(seg));
+
+    const ws = MockWebSocket.instances[0];
+    ws.simulateOpen();
+    ws.simulateMessage(JSON.stringify({
+      type: 'Results',
+      is_final: true,
+      channel: {
+        alternatives: [{
+          transcript: 'Hello',
+          confidence: 0.9,
+          words: [{ word: 'Hello', start: 0.1, end: 0.3, confidence: 0.9 }],
+        }],
+      },
+      start: 0.1,
+      duration: 0.2,
+    }));
+
+    expect(transcripts[0].speaker).toBeNull();
+  });
 });
