@@ -1,27 +1,36 @@
 /**
  * LiveTranscript — displays real-time transcript during active sessions.
  *
- * Shows finalized segments as normal text, interim text in faded italic,
- * and status-driven display for starting/interrupted/failed states.
+ * Shows speaker-labeled segments with provisional indicators.
+ * Tap a speaker label to reassign via SpeakerPicker.
  */
-import { useRef, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useTranscriptStore } from '../stores/transcriptStore';
+import { useSpeakerStore } from '../stores/speakerStore';
+import { speakerService } from '../services/speakerService';
+import { SpeakerPicker } from './SpeakerPicker';
 
 export function LiveTranscript() {
   const theme = useTheme();
   const status = useTranscriptStore((s) => s.status);
   const segments = useTranscriptStore((s) => s.segments);
   const interimText = useTranscriptStore((s) => s.interimText);
+  // Subscribe to mappings so component re-renders when speaker names change
+  const mappings = useSpeakerStore((s) => s.mappings);
+  void mappings;
   const scrollRef = useRef<ScrollView>(null);
+  const [pickerLabel, setPickerLabel] = useState<string | null>(null);
 
-  // Auto-scroll to bottom on new content
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [segments.length, interimText]);
 
-  // Status-driven display
+  const handleSpeakerTap = useCallback((diarizedLabel: string) => {
+    setPickerLabel(diarizedLabel);
+  }, []);
+
   if (status === 'idle') return null;
 
   if (status === 'failed') {
@@ -46,7 +55,6 @@ export function LiveTranscript() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}>
-      {/* Header */}
       <View style={styles.headerRow}>
         <Text style={[theme.type.subtitle, { color: theme.text.primary }]}>
           Live Transcript
@@ -61,17 +69,41 @@ export function LiveTranscript() {
         )}
       </View>
 
-      {/* Transcript content */}
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {segments.map((seg, i) => (
-          <Text key={i} style={[theme.type.body, { color: theme.text.primary }]}>
-            {seg.text}{' '}
-          </Text>
-        ))}
+      <ScrollView ref={scrollRef} style={styles.scroll} showsVerticalScrollIndicator={false}>
+        {segments.map((seg, i) => {
+          const prevSpeaker = i > 0 ? segments[i - 1].speaker : null;
+          const showLabel = seg.speaker && seg.speaker !== prevSpeaker;
+          const displayName = seg.speaker ? speakerService.getDisplayName(seg.speaker) : null;
+          const confidence = seg.speaker ? speakerService.getConfidence(seg.speaker) : null;
+          const isProvisional = confidence === 'provisional';
+
+          return (
+            <View key={`${i}-${seg.start}-${seg.end}`}>
+              {showLabel && displayName && (
+                <Pressable
+                  onPress={() => seg.speaker && handleSpeakerTap(seg.speaker)}
+                  style={styles.speakerLabel}
+                >
+                  <Text
+                    style={[
+                      theme.type.caption,
+                      {
+                        color: theme.primary[500],
+                        fontWeight: '600',
+                        opacity: isProvisional ? 0.6 : 1,
+                      },
+                    ]}
+                  >
+                    {displayName}
+                  </Text>
+                </Pressable>
+              )}
+              <Text style={[theme.type.body, { color: theme.text.primary }]}>
+                {seg.text}{' '}
+              </Text>
+            </View>
+          );
+        })}
         {interimText ? (
           <Text style={[theme.type.body, { color: theme.text.muted, fontStyle: 'italic' }]}>
             {interimText}
@@ -83,6 +115,14 @@ export function LiveTranscript() {
           </Text>
         )}
       </ScrollView>
+
+      {pickerLabel && (
+        <SpeakerPicker
+          diarizedLabel={pickerLabel}
+          visible={!!pickerLabel}
+          onClose={() => setPickerLabel(null)}
+        />
+      )}
     </View>
   );
 }
@@ -90,7 +130,7 @@ export function LiveTranscript() {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    maxHeight: 240,
+    maxHeight: 280,
   },
   headerRow: {
     flexDirection: 'row',
@@ -105,5 +145,9 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
+  },
+  speakerLabel: {
+    marginTop: 8,
+    marginBottom: 2,
   },
 });
