@@ -6,6 +6,7 @@
  */
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/theme';
+import { fontFamily } from '../theme/typography';
 
 interface Props {
   unnamedCount: number;
@@ -42,7 +43,7 @@ export function NewSpeakerBanner({ unnamedCount, onPress }: Props) {
           { backgroundColor: theme.primary[500] },
         ]}
       />
-      <Text style={[theme.type.caption, { color: theme.text.secondary, fontWeight: '600' }]}>
+      <Text style={[theme.type.caption, { color: theme.text.secondary, fontFamily: fontFamily.semibold }]}>
         {label}
       </Text>
     </Pressable>
