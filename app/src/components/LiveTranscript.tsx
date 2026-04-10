@@ -34,14 +34,22 @@ export function LiveTranscript() {
     }
   }, [status, segments.length, interimText]);
 
-  const handleSpeakerTap = useCallback((diarizedLabel: string) => {
-    setPickerLabel(diarizedLabel);
-  }, []);
-
   // Count provisional speakers that aren't "Me" — these need naming
   const unnamedCount = Object.values(mappings).filter(
     (m) => m.confidence === 'provisional' && m.displayName !== 'Me',
   ).length;
+
+  // Diagnostic: track banner state — fires whenever mapping changes
+  useEffect(() => {
+    const summary = Object.entries(mappings)
+      .map(([k, v]) => `${k}→${v.displayName}(${v.confidence})`)
+      .join(', ');
+    console.log(`[LiveTranscript] banner: unnamedCount=${unnamedCount}, mappings=[${summary}]`);
+  }, [unnamedCount, mappings]);
+
+  const handleSpeakerTap = useCallback((diarizedLabel: string) => {
+    setPickerLabel(diarizedLabel);
+  }, []);
 
   // Open SpeakerPicker for the first unnamed label (safe: no-op if none left)
   const handleBannerPress = useCallback(() => {
