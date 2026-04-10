@@ -42,6 +42,7 @@ class SpeakerService {
       displayName,
       confidence,
     });
+    console.log(`[SpeakerService] mapped: ${diarizedLabel} → "${displayName}" (${confidence})`);
   }
 
   /** Reassign a speaker's display name. Sets confidence to user_confirmed. */
