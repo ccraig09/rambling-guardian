@@ -79,6 +79,17 @@ export function SpeakerPicker({ diarizedLabel, visible, onClose }: Props) {
             </Pressable>
           ))}
 
+          {/* Unknown / Not sure yet option */}
+          <Pressable
+            onPress={() => {
+              speakerService.reassignSpeaker(diarizedLabel, diarizedLabel);
+              onClose();
+            }}
+            style={[styles.option, { borderColor: theme.colors.elevated, borderRadius: theme.radius.lg }]}
+          >
+            <Text style={[theme.type.body, { color: theme.text.muted }]}>Unknown / Not sure yet</Text>
+          </Pressable>
+
           {/* Custom name input */}
           <View style={[styles.customRow, { marginTop: theme.spacing.md }]}>
             <TextInput
