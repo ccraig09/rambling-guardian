@@ -35,9 +35,10 @@ export function SpeakerPicker({ diarizedLabel, visible, onClose }: Props) {
     .getLibraryNames()
     .filter((n) => !sessionNames.has(n));
 
-  function confirmName(name: string) {
+  // skipLibrary=true for "Unknown" — diarized labels should never enter the library
+  function confirmName(name: string, skipLibrary = false) {
     speakerService.reassignSpeaker(diarizedLabel, name);
-    if (name !== 'Me') {
+    if (name !== 'Me' && !skipLibrary) {
       speakerLibraryService.addSpeaker(name).catch(console.warn); // persist to library
     }
     onClose();
@@ -79,12 +80,9 @@ export function SpeakerPicker({ diarizedLabel, visible, onClose }: Props) {
             </Pressable>
           ))}
 
-          {/* Unknown / Not sure yet option */}
+          {/* Unknown / Not sure yet — confirms as diarized label, suppresses banner, skips library */}
           <Pressable
-            onPress={() => {
-              speakerService.reassignSpeaker(diarizedLabel, diarizedLabel);
-              onClose();
-            }}
+            onPress={() => confirmName(diarizedLabel, true)}
             style={[styles.option, { borderColor: theme.colors.elevated, borderRadius: theme.radius.lg }]}
           >
             <Text style={[theme.type.body, { color: theme.text.muted }]}>Unknown / Not sure yet</Text>
