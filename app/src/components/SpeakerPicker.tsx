@@ -6,7 +6,7 @@
  * Saves confirmed names to the cross-session speaker library.
  */
 import { useState } from 'react';
-import { View, Text, Pressable, TextInput, Modal, StyleSheet } from 'react-native';
+import { View, Text, Pressable, TextInput, Modal, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { speakerService } from '../services/speakerService';
 import { speakerLibraryService } from '../services/speakerLibraryService';
@@ -53,6 +53,7 @@ export function SpeakerPicker({ diarizedLabel, visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoiding}>
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={[styles.sheet, { backgroundColor: theme.colors.card, borderRadius: theme.radius.xl }]}>
           <Text style={[theme.type.subtitle, { color: theme.text.primary, marginBottom: theme.spacing.md }]}>
@@ -106,11 +107,15 @@ export function SpeakerPicker({ diarizedLabel, visible, onClose }: Props) {
           </Pressable>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoiding: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
