@@ -45,11 +45,27 @@ class SpeakerService {
     console.log(`[SpeakerService] mapped: ${diarizedLabel} → "${displayName}" (${confidence})`);
   }
 
-  /** Reassign a speaker's display name. Sets confidence to user_confirmed. */
+  /** Reassign a speaker's display name. Sets confidence to user_confirmed.
+   *  Enforces single-Me invariant: demotes any previous Me when newDisplayName is 'Me'.
+   */
   reassignSpeaker(diarizedLabel: string, newDisplayName: string): void {
     const store = useSpeakerStore.getState();
     const existing = store.mappings[diarizedLabel];
     if (!existing) return;
+
+    // If reassigning to 'Me', demote any other speaker that is currently 'Me'
+    if (newDisplayName === 'Me') {
+      Object.entries(store.mappings).forEach(([oldLabel, mapping]) => {
+        if (mapping.displayName === 'Me' && oldLabel !== diarizedLabel) {
+          store.setMapping(oldLabel, {
+            ...mapping,
+            displayName: oldLabel, // revert to diarized label
+            confidence: 'provisional',
+          });
+          console.log(`[SpeakerService] demoted: ${oldLabel} → "${oldLabel}" (provisional)`);
+        }
+      });
+    }
 
     store.setMapping(diarizedLabel, {
       ...existing,
