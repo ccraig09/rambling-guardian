@@ -4,7 +4,7 @@
  * Pure UI component: no state, no store access, no logic.
  * All count derivation and tap handling lives in LiveTranscript.
  */
-import { Pressable, Text, StyleSheet } from 'react-native';
+import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/theme';
 
 interface Props {
@@ -25,16 +25,24 @@ export function NewSpeakerBanner({ unnamedCount, onPress }: Props) {
   return (
     <Pressable
       onPress={onPress}
-      style={[
-        styles.pill,
+      style={({ pressed }) => [
+        styles.row,
         {
-          backgroundColor: theme.primary[500] + '26', // ~15% opacity
+          backgroundColor: theme.colors.elevated,
           borderRadius: theme.radius.lg,
+          borderLeftColor: theme.primary[500],
           marginBottom: theme.spacing.sm,
+          opacity: pressed ? 0.7 : 1,
         },
       ]}
     >
-      <Text style={[theme.type.caption, { color: theme.primary[500], fontWeight: '600' }]}>
+      <View
+        style={[
+          styles.dot,
+          { backgroundColor: theme.primary[500] },
+        ]}
+      />
+      <Text style={[theme.type.caption, { color: theme.text.secondary, fontWeight: '600' }]}>
         {label}
       </Text>
     </Pressable>
@@ -42,9 +50,17 @@ export function NewSpeakerBanner({ unnamedCount, onPress }: Props) {
 }
 
 const styles = StyleSheet.create({
-  pill: {
-    paddingVertical: 8,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    alignSelf: 'flex-start',
+    borderLeftWidth: 4,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 8,
   },
 });
