@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Session, SessionMode } from '../types';
+import type { Session, SessionMode, SessionContext } from '../types';
 import { SyncPhase } from '../types';
 
 interface SessionStore {
@@ -21,6 +21,13 @@ interface SessionStore {
   setIsSyncing: (syncing: boolean) => void;
   setLastSyncAt: (at: number | null) => void;
   setSyncPhase: (phase: SyncPhase) => void;
+
+  // Context classification (D.4)
+  sessionContext: SessionContext | null;
+  sessionContextOverride: boolean;
+  setSessionContext: (context: SessionContext | null) => void;
+  setSessionContextOverride: (override: boolean) => void;
+  resetContext: () => void;
 }
 
 export const useSessionStore = create<SessionStore>((set) => ({
@@ -47,4 +54,11 @@ export const useSessionStore = create<SessionStore>((set) => ({
   setIsSyncing: (syncing) => set({ isSyncing: syncing }),
   setLastSyncAt: (at) => set({ lastSyncAt: at }),
   setSyncPhase: (phase) => set({ syncPhase: phase }),
+
+  // Context classification (D.4)
+  sessionContext: null,
+  sessionContextOverride: false,
+  setSessionContext: (context) => set({ sessionContext: context }),
+  setSessionContextOverride: (override) => set({ sessionContextOverride: override }),
+  resetContext: () => set({ sessionContext: null, sessionContextOverride: false }),
 }));
