@@ -17,12 +17,13 @@ export interface DeepgramConnection {
   onOpen(cb: () => void): () => void;
   onClose(cb: (code?: number, reason?: string) => void): () => void;
   close(): void;
+  /** Send close frame and wait for Deepgram to flush final transcript + close. */
+  closeAndDrain(): Promise<void>;
   isOpen(): boolean;
 }
 
 export function createDeepgramConnection(
   apiKey: string,
-  sessionStartMs: number = 0,
 ): DeepgramConnection {
   const transcriptListeners: Array<(seg: TranscriptSegment) => void> = [];
   const errorListeners: Array<(error: string) => void> = [];
@@ -64,14 +65,16 @@ export function createDeepgramConnection(
       const alt = data.channel?.alternatives?.[0];
       if (!alt?.transcript) return; // skip empty
 
-      const startMs = Math.round((data.start ?? 0) * 1000) + sessionStartMs;
+      // Deepgram returns start/duration in seconds from audio stream begin.
+      // Convert to ms — these are already relative to session start.
+      const startMs = Math.round((data.start ?? 0) * 1000);
       const endMs = startMs + Math.round((data.duration ?? 0) * 1000);
 
       const words: TranscriptWord[] | undefined = alt.words?.length
         ? alt.words.map((w: any) => ({
             word: w.word,
-            start: Math.round(w.start * 1000) + sessionStartMs,
-            end: Math.round(w.end * 1000) + sessionStartMs,
+            start: Math.round(w.start * 1000),
+            end: Math.round(w.end * 1000),
             confidence: w.confidence,
           }))
         : undefined;
@@ -145,6 +148,26 @@ export function createDeepgramConnection(
     close() {
       if (keepaliveInterval) clearInterval(keepaliveInterval);
       ws.close();
+    },
+    closeAndDrain(): Promise<void> {
+      return new Promise((resolve) => {
+        if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+          resolve();
+          return;
+        }
+        if (keepaliveInterval) {
+          clearInterval(keepaliveInterval);
+          keepaliveInterval = null;
+        }
+        // Deepgram flushes any buffered final transcript before closing.
+        // Wait for onclose (which fires after all messages are delivered).
+        const safety = setTimeout(resolve, 3000);
+        closeListeners.push(() => {
+          clearTimeout(safety);
+          resolve();
+        });
+        ws.close();
+      });
     },
     isOpen() {
       return ws.readyState === WebSocket.OPEN;

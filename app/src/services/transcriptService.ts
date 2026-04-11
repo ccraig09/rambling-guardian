@@ -25,7 +25,6 @@ class TranscriptService {
   private unsubscribeStore: (() => void) | null = null;
   private connection: DeepgramConnection | null = null;
   private activeSessionId: string | null = null;
-  private sessionStartMs: number = 0;
   private micInitialized = false;
   private firstTranscriptLogged = false;
 
@@ -38,7 +37,6 @@ class TranscriptService {
       // Session became active — start transcription
       if (sessionId && sessionId !== this.activeSessionId) {
         this.activeSessionId = sessionId;
-        this.sessionStartMs = Date.now();
         this.startTranscription(sessionId);
       }
 
@@ -90,7 +88,7 @@ class TranscriptService {
 
       // Open Deepgram connection
       console.log('[TranscriptService] Opening Deepgram WebSocket...');
-      this.connection = createDeepgramConnection(DEEPGRAM_API_KEY, this.sessionStartMs);
+      this.connection = createDeepgramConnection(DEEPGRAM_API_KEY);
 
       let chunkCount = 0;
 
@@ -175,9 +173,11 @@ class TranscriptService {
       (LiveAudioStream as any).removeAllListeners?.('data');
     } catch { /* ignore */ }
 
-    // Close Deepgram (graceful — may flush final transcript)
+    // Close Deepgram and wait for final transcript flush before persisting.
+    // closeAndDrain() waits for the WebSocket onclose event (up to 3s),
+    // which fires after Deepgram delivers any buffered final result.
     if (this.connection) {
-      this.connection.close();
+      await this.connection.closeAndDrain();
       this.connection = null;
     }
 
