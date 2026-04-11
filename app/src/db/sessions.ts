@@ -19,7 +19,7 @@
  */
 
 import { getDatabase } from './database';
-import type { Session, SessionMode, AlertEvent, SyncStatus, SessionSyncInfo, RetentionTier } from '../types';
+import type { Session, SessionMode, AlertEvent, SyncStatus, SessionSyncInfo, RetentionTier, SessionContext, SessionContextSource } from '../types';
 import { AlertLevel } from '../types';
 
 /** Start a new session, returns session id */
@@ -335,8 +335,8 @@ export async function deleteSession(sessionId: string): Promise<void> {
 /** Persist session context classification. */
 export async function updateSessionContext(
   sessionId: string,
-  context: string | null,
-  source: string | null,
+  context: SessionContext | null,
+  source: SessionContextSource | null,
 ): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
@@ -369,5 +369,7 @@ function parseSession(r: any): Session {
     speechSegments: r.speech_segments,
     sensitivity: r.sensitivity,
     syncedFromDevice: r.synced_from_device === 1,
+    sessionContext: r.session_context as SessionContext | null,
+    sessionContextSource: r.session_context_source as SessionContextSource | null,
   };
 }

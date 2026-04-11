@@ -95,6 +95,8 @@ export interface Session {
   speechSegments: number;
   sensitivity: number;
   syncedFromDevice: boolean;
+  sessionContext: SessionContext | null;
+  sessionContextSource: SessionContextSource | null;
 }
 
 export interface AlertEvent {
