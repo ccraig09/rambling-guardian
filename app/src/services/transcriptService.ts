@@ -14,12 +14,13 @@ import { useSessionStore } from '../stores/sessionStore';
 import { useTranscriptStore } from '../stores/transcriptStore';
 import { createDeepgramConnection, type DeepgramConnection } from './deepgramClient';
 import { DEEPGRAM_API_KEY } from '../config/deepgram';
-import { updateTranscript, updateRetention } from '../db/sessions';
+import { updateTranscript, updateRetention, updateSessionContext } from '../db/sessions';
 import { RetentionTier } from '../types';
 import type { TranscriptSegment } from '../types';
 import { speakerService } from './speakerService';
 import { speakerLibraryService } from './speakerLibraryService';
 import { useSpeakerStore } from '../stores/speakerStore';
+import { classifyContext } from './contextClassificationService';
 
 class TranscriptService {
   private unsubscribeStore: (() => void) | null = null;
@@ -57,6 +58,7 @@ class TranscriptService {
     const store = useTranscriptStore.getState();
     store.reset();
     speakerService.reset();
+    useSessionStore.getState().resetContext();
     store.setStatus('starting');
     console.log(`[TranscriptService] Session became active: ${sessionId}`);
 
@@ -106,6 +108,8 @@ class TranscriptService {
 
         if (segment.isFinal) {
           useTranscriptStore.getState().addFinalSegment(segment);
+          // D.4: live context classification on each final segment
+          this.updateContextClassification();
         } else {
           useTranscriptStore.getState().setInterim(segment.text);
         }
@@ -162,6 +166,27 @@ class TranscriptService {
     }
   }
 
+  /** Recompute session context from current segments. Respects manual override. */
+  private updateContextClassification(): void {
+    const sessionStore = useSessionStore.getState();
+    if (sessionStore.sessionContextOverride) return; // user override is sticky
+
+    const { segments } = useTranscriptStore.getState();
+    const finalSegments = segments.filter((s) => s.isFinal);
+
+    // Build speaker → segment count map
+    const speakerCounts = new Map<string, number>();
+    for (const seg of finalSegments) {
+      const speaker = seg.speaker ?? 'unknown';
+      speakerCounts.set(speaker, (speakerCounts.get(speaker) ?? 0) + 1);
+    }
+
+    const context = classifyContext(speakerCounts, finalSegments.length);
+    if (context !== sessionStore.sessionContext) {
+      sessionStore.setSessionContext(context);
+    }
+  }
+
   private async stopTranscription() {
     const sessionId = this.activeSessionId;
     this.activeSessionId = null;
@@ -203,6 +228,14 @@ class TranscriptService {
         for (const name of confirmedNames) {
           await speakerLibraryService.markSeenInSession(name);
         }
+
+        // D.4: persist session context classification
+        const { sessionContext, sessionContextOverride } = useSessionStore.getState();
+        await updateSessionContext(
+          sessionId,
+          sessionContext,
+          sessionContext ? (sessionContextOverride ? 'manual' : 'auto') : null,
+        );
 
         useTranscriptStore.getState().setStatus('complete');
       } catch (error) {
