@@ -44,6 +44,16 @@ class SessionTracker {
           this._maxAlert = AlertLevel.NONE;
           this._speechSegments = 0;
           console.log('[SessionTracker] Session created:', this.sessionId);
+
+          // D.5: write Solo baseline thresholds to device on session start
+          const { thresholds } = useSettingsStore.getState();
+          try {
+            await bleService.writeThresholds(thresholds);
+            useSessionStore.getState().setActiveProfile(thresholds);
+            useSessionStore.getState().setLastProfileWriteTime(Date.now());
+          } catch (e) {
+            console.warn('[SessionTracker] Failed to write Solo thresholds:', e);
+          }
         } catch (e) {
           console.warn('[SessionTracker] Failed to create session:', e);
         }
@@ -65,6 +75,16 @@ class SessionTracker {
             this._speechSegments,
           );
           console.log('[SessionTracker] Session finalized:', id, durationMs, 'ms');
+
+          // D.5: restore Solo baseline thresholds — only clear profile on success
+          const { thresholds } = useSettingsStore.getState();
+          try {
+            await bleService.writeThresholds(thresholds);
+            useSessionStore.getState().resetProfile();
+          } catch (e) {
+            // Keep prior activeProfile — reconnect will re-assert it
+            console.warn('[SessionTracker] Failed to restore Solo thresholds:', e);
+          }
 
           // Refresh pending sync count after finalize
           const pendingCount = await getPendingSyncCount();

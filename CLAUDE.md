@@ -104,6 +104,12 @@ Name normalization: trim + collapse internal spaces + preserve casing. Applied o
 `SessionContextPill` in the session screen shows the detected context. Tap to override via Alert.alert picker.
 `session_context` and `session_context_source` columns (migrateToV6) persist the final value on session end.
 
+### Coaching Profiles (Phase D.5 v1)
+`coachingProfileService.ts` has two layers: pure profile logic (computeProfileThresholds, getProfileLabel) and a thin orchestration coordinator (applyProfileForCurrentContext). Solo uses the user's Settings thresholds. With Others (0.7x/0.7x/0.65x/0.75x) and Presenting (3x uniform) are derived via per-threshold multipliers. Safety rails: floor/ceiling clamps + monotonic enforcement. Applied order: multiply → round → clamp → monotonic.
+`applyProfileForCurrentContext()` is the single authority for threshold writes during sessions. Reads context from sessionStore, base from settingsStore, computes derived, compares with activeProfile, checks stability guard (5s), writes via BLE. Store updates only on successful write.
+Session start → Solo baseline. Context change → derived profile. Manual override → immediate (bypass stability). Settings change during session → immediate recompute. Session end → restore Solo + clear profile (only on successful write). BLE reconnect → re-assert activeProfile or Solo.
+`SessionContextPill` shows profile label: "Solo · Standard alerts", "With Others · Tighter alerts", "Presenting · Relaxed alerts".
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 

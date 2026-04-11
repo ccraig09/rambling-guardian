@@ -21,6 +21,7 @@ import { speakerService } from './speakerService';
 import { speakerLibraryService } from './speakerLibraryService';
 import { useSpeakerStore } from '../stores/speakerStore';
 import { classifyContext } from './contextClassificationService';
+import { applyProfileForCurrentContext } from './coachingProfileService';
 
 class TranscriptService {
   private unsubscribeStore: (() => void) | null = null;
@@ -184,6 +185,10 @@ class TranscriptService {
     const context = classifyContext(speakerCounts, finalSegments.length);
     if (context !== sessionStore.sessionContext) {
       sessionStore.setSessionContext(context);
+      // D.5: apply coaching profile for new context (fire-and-forget with error handling)
+      void applyProfileForCurrentContext().catch(
+        (e: unknown) => console.warn('[TranscriptService] Profile apply failed:', e),
+      );
     }
   }
 
