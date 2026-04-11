@@ -33,6 +33,8 @@ Three session context types for v1:
    - Otherwise → `with_others`.
 5. If user has overridden, skip auto-classification entirely — the override is sticky for the rest of the session.
 
+**Important:** The minimum segment floor applies only to auto-classification. If the user manually selects a context before the floor is met (e.g. taps the pill area and picks "With Others" in the first 30 seconds), that manual context is stored immediately in the session store, persists normally at session end, and is never overwritten by auto-classification.
+
 ### Thresholds
 
 Named constants in the service file, easy to tune:
@@ -96,19 +98,7 @@ Returns `null` if `totalSegments < MIN_SEGMENTS_FOR_CLASSIFICATION`. Otherwise r
 
 No state, no store access, no side effects. Pure function — easy to unit test.
 
-**Display label helper:**
-
-```typescript
-const CONTEXT_LABELS: Record<SessionContext, string> = {
-  solo: 'Solo',
-  with_others: 'With Others',
-  presentation: 'Presenting',
-};
-
-function getContextLabel(context: SessionContext): string
-```
-
-This lives in the service file so the UI component doesn't need its own label map.
+This service contains classification logic only — no display labels. The internal→UI label mapping (`presentation` → `Presenting`, etc.) lives in the `SessionContextPill` component where it is consumed.
 
 ## Wiring
 
@@ -155,8 +145,16 @@ Small presentational component: `app/src/components/SessionContextPill.tsx`.
 
 **Props:** `{ context: SessionContext | null; isOverride: boolean; onPress: () => void }`
 
+**Display label map** lives in this component (not in the classification service):
+
+```
+solo → "Solo"
+with_others → "With Others"
+presentation → "Presenting"
+```
+
 **Behavior:**
-- `context === null` → render nothing (below segment floor)
+- `context === null` → render nothing (auto-classification hasn't reached the floor yet and user hasn't manually selected)
 - Otherwise → render a tappable pill showing the display label
 - If `isOverride` is true, show a small visual indicator (e.g. slightly different border or a "·" suffix) so the user knows they set it manually
 
