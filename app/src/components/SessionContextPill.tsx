@@ -1,5 +1,5 @@
 /**
- * SessionContextPill — shows detected session context (solo / with others / presenting).
+ * SessionContextPill — shows detected session context + active coaching profile.
  *
  * Tappable: opens an override picker so the user can correct the classification.
  * Purely presentational — all state management is in the parent.
@@ -17,15 +17,22 @@ const CONTEXT_LABELS: Record<SessionContext, string> = {
 interface Props {
   context: SessionContext | null;
   isOverride: boolean;
+  profileLabel: string | null;
   onPress: () => void;
 }
 
-export function SessionContextPill({ context, isOverride, onPress }: Props) {
+export function SessionContextPill({ context, isOverride, profileLabel, onPress }: Props) {
   const theme = useTheme();
 
   if (!context) return null;
 
-  const label = CONTEXT_LABELS[context] + (isOverride ? ' ·' : '');
+  let label = CONTEXT_LABELS[context];
+  if (profileLabel) {
+    label += ` · ${profileLabel}`;
+  }
+  if (isOverride) {
+    label += ' ·';
+  }
 
   return (
     <Pressable

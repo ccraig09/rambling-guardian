@@ -395,6 +395,7 @@ export default function SessionScreen() {
               <SessionContextPill
                 context={sessionContext}
                 isOverride={sessionContextOverride}
+                profileLabel={sessionContext ? getProfileLabel(sessionContext) : null}
                 onPress={handleContextOverride}
               />
             </View>
