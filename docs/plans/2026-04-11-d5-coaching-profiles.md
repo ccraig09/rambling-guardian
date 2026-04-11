@@ -457,16 +457,20 @@ import { applyProfileForCurrentContext } from './coachingProfileService';
 In the `updateContextClassification()` method, after the `sessionStore.setSessionContext(context)` call (inside the `if (context !== sessionStore.sessionContext)` block, around line 186), add:
 
 ```typescript
-      // D.5: apply coaching profile for new context
-      applyProfileForCurrentContext();
+      // D.5: apply coaching profile for new context (fire-and-forget with error handling)
+      void applyProfileForCurrentContext().catch(
+        (e: unknown) => console.warn('[TranscriptService] Profile apply failed:', e),
+      );
 ```
 
 The full block should read:
 ```typescript
     if (context !== sessionStore.sessionContext) {
       sessionStore.setSessionContext(context);
-      // D.5: apply coaching profile for new context
-      applyProfileForCurrentContext();
+      // D.5: apply coaching profile for new context (fire-and-forget with error handling)
+      void applyProfileForCurrentContext().catch(
+        (e: unknown) => console.warn('[TranscriptService] Profile apply failed:', e),
+      );
     }
 ```
 
@@ -515,14 +519,15 @@ In the session creation block (inside the `if (state.sessionState === AppSession
 In the session finalization block (inside the `if (state.sessionState === AppSessionState.NO_SESSION && this.sessionId !== null)` block), after `console.log('[SessionTracker] Session finalized:', id, durationMs, 'ms');` (around line 67), add:
 
 ```typescript
-          // D.5: restore Solo baseline thresholds and clear active profile
+          // D.5: restore Solo baseline thresholds — only clear profile on success
           const { thresholds } = useSettingsStore.getState();
           try {
             await bleService.writeThresholds(thresholds);
+            useSessionStore.getState().resetProfile();
           } catch (e) {
+            // Keep prior activeProfile — reconnect will re-assert it
             console.warn('[SessionTracker] Failed to restore Solo thresholds:', e);
           }
-          useSessionStore.getState().resetProfile();
 ```
 
 - [ ] **Step 4: Wire BLE reconnect in bleManager.ts**
@@ -586,7 +591,9 @@ Replace the existing `applyContextOverride` function (around line 212-215) with:
     useSessionStore.getState().setSessionContext(context);
     useSessionStore.getState().setSessionContextOverride(true);
     // D.5: apply coaching profile immediately (bypass stability guard)
-    applyProfileForCurrentContext({ bypassStabilityGuard: true });
+    void applyProfileForCurrentContext({ bypassStabilityGuard: true }).catch(
+      (e: unknown) => console.warn('[Session] Profile apply failed:', e),
+    );
   }
 ```
 
@@ -628,8 +635,10 @@ With:
     const sessionState = useDeviceStore.getState().sessionState;
     if (sessionState === AppSessionState.ACTIVE) {
       // Lazy import to avoid circular dependency at module load time
-      const { applyProfileForCurrentContext } = require('./coachingProfileService') as typeof import('../services/coachingProfileService');
-      applyProfileForCurrentContext({ bypassStabilityGuard: true });
+      const { applyProfileForCurrentContext } = require('../services/coachingProfileService') as typeof import('../services/coachingProfileService');
+      void applyProfileForCurrentContext({ bypassStabilityGuard: true }).catch(
+        (e: unknown) => console.warn('[Settings] Profile recompute failed:', e),
+      );
     }
   },
 ```
@@ -763,7 +772,7 @@ git commit -m "feat(D5): SessionContextPill gains profileLabel prop"
 
 ---
 
-### Task 8: Integration tests — override bypass + stability guard + lifecycle
+### Task 8: Integration tests — coordinator behavior
 
 **Files:**
 - Create: `app/src/services/__tests__/coachingProfile.integration.test.ts`
@@ -774,8 +783,21 @@ Create `app/src/services/__tests__/coachingProfile.integration.test.ts`:
 
 ```typescript
 import { useSessionStore } from '../../stores/sessionStore';
-import { computeProfileThresholds } from '../coachingProfileService';
+import { useSettingsStore } from '../../stores/settingsStore';
+import {
+  computeProfileThresholds,
+  applyProfileForCurrentContext,
+} from '../coachingProfileService';
+import { bleService } from '../bleManager';
 import type { AlertThresholds } from '../../types';
+
+// Mock BLE — we test coordinator logic, not actual BLE writes
+const mockWriteThresholds = jest.fn().mockResolvedValue(undefined);
+jest.mock('../bleManager', () => ({
+  bleService: {
+    writeThresholds: (...args: unknown[]) => mockWriteThresholds(...args),
+  },
+}));
 
 const SOLO_BASE: AlertThresholds = {
   gentleSec: 7,
@@ -784,25 +806,17 @@ const SOLO_BASE: AlertThresholds = {
   criticalSec: 60,
 };
 
-describe('coaching profile integration', () => {
+describe('coaching profile coordinator', () => {
   beforeEach(() => {
     useSessionStore.getState().resetContext();
     useSessionStore.getState().resetProfile();
+    mockWriteThresholds.mockClear();
+    mockWriteThresholds.mockResolvedValue(undefined);
   });
 
   test('activeProfile is null before any session', () => {
     expect(useSessionStore.getState().activeProfile).toBeNull();
     expect(useSessionStore.getState().lastProfileWriteTime).toBeNull();
-  });
-
-  test('setActiveProfile updates store only on explicit call', () => {
-    const derived = computeProfileThresholds('with_others', SOLO_BASE);
-    useSessionStore.getState().setActiveProfile(derived);
-    useSessionStore.getState().setLastProfileWriteTime(Date.now());
-
-    const state = useSessionStore.getState();
-    expect(state.activeProfile).toEqual(derived);
-    expect(state.lastProfileWriteTime).toBeGreaterThan(0);
   });
 
   test('resetProfile clears activeProfile and lastProfileWriteTime', () => {
@@ -812,25 +826,82 @@ describe('coaching profile integration', () => {
 
     useSessionStore.getState().resetProfile();
 
-    const state = useSessionStore.getState();
-    expect(state.activeProfile).toBeNull();
-    expect(state.lastProfileWriteTime).toBeNull();
+    expect(useSessionStore.getState().activeProfile).toBeNull();
+    expect(useSessionStore.getState().lastProfileWriteTime).toBeNull();
   });
 
-  test('context override triggers profile recomputation with new context', () => {
-    // Simulate: auto-classified as solo, user overrides to presentation
+  test('applyProfileForCurrentContext writes derived thresholds on context change', async () => {
+    useSessionStore.getState().setSessionContext('with_others');
+    await applyProfileForCurrentContext();
+
+    expect(mockWriteThresholds).toHaveBeenCalledTimes(1);
+    const written = mockWriteThresholds.mock.calls[0][0] as AlertThresholds;
+    expect(written.gentleSec).toBe(5); // 7*0.7=4.9→5
+    expect(useSessionStore.getState().activeProfile).toEqual(written);
+  });
+
+  test('identical derived thresholds skip BLE write', async () => {
+    // Set context and apply once
     useSessionStore.getState().setSessionContext('solo');
-    const soloProfile = computeProfileThresholds('solo', SOLO_BASE);
-    useSessionStore.getState().setActiveProfile(soloProfile);
+    await applyProfileForCurrentContext();
+    expect(mockWriteThresholds).toHaveBeenCalledTimes(1);
 
-    // User overrides
+    // Apply again with same context — should skip
+    mockWriteThresholds.mockClear();
+    await applyProfileForCurrentContext();
+    expect(mockWriteThresholds).not.toHaveBeenCalled();
+  });
+
+  test('stability guard suppresses rapid context-triggered writes', async () => {
+    // First write
+    useSessionStore.getState().setSessionContext('with_others');
+    await applyProfileForCurrentContext();
+    expect(mockWriteThresholds).toHaveBeenCalledTimes(1);
+
+    // Change context immediately — stability guard should suppress
+    mockWriteThresholds.mockClear();
     useSessionStore.getState().setSessionContext('presentation');
-    useSessionStore.getState().setSessionContextOverride(true);
-    const newProfile = computeProfileThresholds('presentation', SOLO_BASE);
+    await applyProfileForCurrentContext(); // no bypassStabilityGuard
+    expect(mockWriteThresholds).not.toHaveBeenCalled();
+  });
 
-    // Profile should differ from solo
-    expect(newProfile.gentleSec).not.toBe(soloProfile.gentleSec);
-    expect(newProfile.gentleSec).toBe(21); // 7 * 3.0
+  test('manual override bypasses stability guard', async () => {
+    // First write to set lastProfileWriteTime
+    useSessionStore.getState().setSessionContext('with_others');
+    await applyProfileForCurrentContext();
+
+    // Override immediately — should bypass stability guard
+    mockWriteThresholds.mockClear();
+    useSessionStore.getState().setSessionContext('presentation');
+    await applyProfileForCurrentContext({ bypassStabilityGuard: true });
+    expect(mockWriteThresholds).toHaveBeenCalledTimes(1);
+    const written = mockWriteThresholds.mock.calls[0][0] as AlertThresholds;
+    expect(written.gentleSec).toBe(21); // 7*3.0
+  });
+
+  test('failed BLE write does not update activeProfile', async () => {
+    useSessionStore.getState().setSessionContext('with_others');
+    await applyProfileForCurrentContext();
+    const successfulProfile = useSessionStore.getState().activeProfile;
+
+    // Next write will fail
+    mockWriteThresholds.mockRejectedValueOnce(new Error('BLE disconnected'));
+    useSessionStore.getState().setSessionContext('presentation');
+    await applyProfileForCurrentContext({ bypassStabilityGuard: true });
+
+    // activeProfile should still be the last successful write
+    expect(useSessionStore.getState().activeProfile).toEqual(successfulProfile);
+  });
+
+  test('store updates only on successful BLE write', async () => {
+    // Fail the first write
+    mockWriteThresholds.mockRejectedValueOnce(new Error('BLE error'));
+    useSessionStore.getState().setSessionContext('with_others');
+    await applyProfileForCurrentContext();
+
+    // Store should NOT have been updated
+    expect(useSessionStore.getState().activeProfile).toBeNull();
+    expect(useSessionStore.getState().lastProfileWriteTime).toBeNull();
   });
 });
 ```
@@ -838,13 +909,13 @@ describe('coaching profile integration', () => {
 - [ ] **Step 2: Run the tests**
 
 Run: `cd app && npx jest --no-coverage --testPathPattern=coachingProfile.integration`
-Expected: 4 tests PASS
+Expected: 7 tests PASS
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add app/src/services/__tests__/coachingProfile.integration.test.ts
-git commit -m "test(D5): coaching profile integration tests"
+git commit -m "test(D5): coaching profile coordinator integration tests"
 ```
 
 ---
@@ -863,7 +934,7 @@ Read `CLAUDE.md` first. Find the "Context Classification (Phase D.4)" section. A
 ### Coaching Profiles (Phase D.5 v1)
 `coachingProfileService.ts` has two layers: pure profile logic (computeProfileThresholds, getProfileLabel) and a thin orchestration coordinator (applyProfileForCurrentContext). Solo uses the user's Settings thresholds. With Others (0.7x/0.7x/0.65x/0.75x) and Presenting (3x uniform) are derived via per-threshold multipliers. Safety rails: floor/ceiling clamps + monotonic enforcement. Applied order: multiply → round → clamp → monotonic.
 `applyProfileForCurrentContext()` is the single authority for threshold writes during sessions. Reads context from sessionStore, base from settingsStore, computes derived, compares with activeProfile, checks stability guard (5s), writes via BLE. Store updates only on successful write.
-Session start → Solo baseline. Context change → derived profile. Manual override → immediate (bypass stability). Settings change during session → immediate recompute. Session end → restore Solo + clear profile. BLE reconnect → re-assert activeProfile or Solo.
+Session start → Solo baseline. Context change → derived profile. Manual override → immediate (bypass stability). Settings change during session → immediate recompute. Session end → restore Solo + clear profile (only on successful write). BLE reconnect → re-assert activeProfile or Solo.
 `SessionContextPill` shows profile label: "Solo · Standard alerts", "With Others · Tighter alerts", "Presenting · Relaxed alerts".
 ```
 
