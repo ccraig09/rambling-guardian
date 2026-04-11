@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Session, SessionMode, SessionContext } from '../types';
+import type { Session, SessionMode, SessionContext, AlertThresholds } from '../types';
 import { SyncPhase } from '../types';
 
 interface SessionStore {
@@ -28,6 +28,13 @@ interface SessionStore {
   setSessionContext: (context: SessionContext | null) => void;
   setSessionContextOverride: (override: boolean) => void;
   resetContext: () => void;
+
+  // Coaching profiles (D.5)
+  activeProfile: AlertThresholds | null;
+  lastProfileWriteTime: number | null;
+  setActiveProfile: (profile: AlertThresholds) => void;
+  setLastProfileWriteTime: (time: number) => void;
+  resetProfile: () => void;
 }
 
 export const useSessionStore = create<SessionStore>((set) => ({
@@ -61,4 +68,11 @@ export const useSessionStore = create<SessionStore>((set) => ({
   setSessionContext: (context) => set({ sessionContext: context }),
   setSessionContextOverride: (override) => set({ sessionContextOverride: override }),
   resetContext: () => set({ sessionContext: null, sessionContextOverride: false }),
+
+  // Coaching profiles (D.5)
+  activeProfile: null,
+  lastProfileWriteTime: null,
+  setActiveProfile: (profile) => set({ activeProfile: profile }),
+  setLastProfileWriteTime: (time) => set({ lastProfileWriteTime: time }),
+  resetProfile: () => set({ activeProfile: null, lastProfileWriteTime: null }),
 }));
