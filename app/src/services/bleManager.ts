@@ -16,6 +16,8 @@ import {
 import type { DeviceState, SessionStats, AlertThresholds } from '../types';
 import { AlertLevel, AppSessionState, ConnectionState, DeviceMode, AlertModality } from '../types';
 import { useDeviceStore } from '../stores/deviceStore';
+import { useSessionStore } from '../stores/sessionStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { saveSetting } from '../db/settings';
 import { clearSyncCheckpoint } from './syncEngine';
 
@@ -260,6 +262,16 @@ class BLEService {
     await this.readInitialValues(device);
     await this.subscribeToNotifications(device);
     useDeviceStore.getState().setConnectionState(ConnectionState.CONNECTED);
+
+    // D.5: re-assert threshold profile on reconnect
+    try {
+      const { activeProfile } = useSessionStore.getState();
+      const { thresholds: soloThresholds } = useSettingsStore.getState();
+      const profileToWrite = activeProfile ?? soloThresholds;
+      await this.writeThresholds(profileToWrite);
+    } catch (e) {
+      console.warn('[BLE] Failed to re-assert thresholds on reconnect:', e);
+    }
   }
 
   // -------------------------------------------------------------------
