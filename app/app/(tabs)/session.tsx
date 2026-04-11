@@ -10,6 +10,7 @@
  * "End Session" stops monitoring but keeps the BLE connection alive.
  */
 import { LiveTranscript } from '../../src/components/LiveTranscript';
+import { SessionContextPill } from '../../src/components/SessionContextPill';
 import {
   View,
   Text,
@@ -23,8 +24,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/theme';
 import { useDeviceState, useSessionStats, useConnectionState } from '../../src/hooks/useDeviceState';
 import { useDeviceStore } from '../../src/stores/deviceStore';
+import { useSessionStore } from '../../src/stores/sessionStore';
 import { bleService } from '../../src/services/bleManager';
 import { AlertLevel, AppSessionState, ConnectionState, DeviceMode, AlertModality } from '../../src/types';
+import type { SessionContext } from '../../src/types';
 import { useTranscriptStore } from '../../src/stores/transcriptStore';
 import SyncStatusIndicator from '../../src/components/SyncStatusIndicator';
 
@@ -114,6 +117,8 @@ export default function SessionScreen() {
   const connectionState = useConnectionState();
   const sessionState = useDeviceStore((s) => s.sessionState);
   const lastDeviceId = useDeviceStore((s) => s.lastDeviceId);
+  const sessionContext = useSessionStore((s) => s.sessionContext);
+  const sessionContextOverride = useSessionStore((s) => s.sessionContextOverride);
 
   async function handleConnect() {
     try {
@@ -189,6 +194,24 @@ export default function SessionScreen() {
     } catch {
       console.warn('[Session] Forget device failed');
     }
+  }
+
+  function handleContextOverride() {
+    Alert.alert(
+      'Session Context',
+      'What kind of conversation is this?',
+      [
+        { text: 'Solo', onPress: () => applyContextOverride('solo') },
+        { text: 'With Others', onPress: () => applyContextOverride('with_others') },
+        { text: 'Presenting', onPress: () => applyContextOverride('presentation') },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  }
+
+  function applyContextOverride(context: SessionContext) {
+    useSessionStore.getState().setSessionContext(context);
+    useSessionStore.getState().setSessionContextOverride(true);
   }
 
   function alertColor(level: AlertLevel): string {
@@ -360,6 +383,15 @@ export default function SessionScreen() {
             {/* -- Sync status (only during active session) -- */}
             <View style={{ marginTop: theme.spacing.sm }}>
               <SyncStatusIndicator />
+            </View>
+
+            {/* -- Context classification pill (D.4) -- */}
+            <View style={{ marginTop: theme.spacing.sm }}>
+              <SessionContextPill
+                context={sessionContext}
+                isOverride={sessionContextOverride}
+                onPress={handleContextOverride}
+              />
             </View>
 
             {/* -- Session Info -- */}
