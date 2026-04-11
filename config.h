@@ -43,6 +43,7 @@ static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 // Speech Timer Thresholds (milliseconds)
 // ============================================
 #define PAUSE_THRESHOLD_MS    3000    // 3s silence = timer reset
+#define MAX_SESSION_DURATION_MS 7200000  // 2 hours — auto-stop safety net
 #define ALERT_GENTLE_MS       7000    // 7 seconds — yellow (2-3 sentences, awareness nudge)
 #define ALERT_MODERATE_MS    15000    // 15 seconds — orange (monologue territory)
 #define ALERT_URGENT_MS      30000    // 30 seconds — red (wrap it up)
@@ -104,6 +105,9 @@ static const int VAD_THRESHOLDS[VAD_SENSITIVITY_LEVELS] = { 25, 50, 100, 200 };
 #define BLE_CHR_THRESHOLDS    "4A980008-1CC4-E7C1-C757-F1267DD021E8"
 #define BLE_CHR_MODALITY      "4A980009-1CC4-E7C1-C757-F1267DD021E8"
 #define BLE_CHR_DEVICE_INFO   "4A98000A-1CC4-E7C1-C757-F1267DD021E8"
+#define BLE_CHR_SESSION_CTRL  "4A98000B-1CC4-E7C1-C757-F1267DD021E8"
+#define BLE_CHR_SYNC_DATA     "4A98000C-1CC4-E7C1-C757-F1267DD021E8"
 #define BLE_UPDATE_INTERVAL_MS 250   // How often to push speech duration updates
+#define BLE_STATS_INTERVAL_MS  5000    // How often to push session stats (5s)
 
 #endif // CONFIG_H

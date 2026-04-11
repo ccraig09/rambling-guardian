@@ -6,5 +6,7 @@
 
 void modeManagerInit();
 DeviceMode modeManagerGetMode();
+AlertModality modeManagerGetModality();
+TriggerSource modeManagerGetTriggerSource();
 
 #endif // MODE_MANAGER_H

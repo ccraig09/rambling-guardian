@@ -1,81 +1,103 @@
 # Rambling Guardian
 
-Wearable ADHD speech-duration monitor built on XIAO ESP32S3 Sense.
+Wearable ADHD speech-duration monitor. A clip-on device tracks how long you've been talking and nudges you with escalating LED and vibration alerts before you lose your audience.
 
-Detects continuous speech and alerts with escalating RGB LED colors:
-- **Green** (breathing) — safe, you're not rambling
-- **Yellow** (7s) — gentle nudge
-- **Orange** (15s) — time to wrap up
-- **Red** (30s) — you've been talking a while
-- **Red blinking** (60s) — critical alert
+**Status:** Late Phase C — companion app and BLE integration complete, hardening in progress. Not yet released.
+
+## How It Works
+
+The device listens for continuous speech via a PDM microphone and energy-based VAD (voice activity detection). When speech exceeds configurable thresholds, it alerts with escalating intensity:
+
+| Level | Default | LED | Vibration |
+|-------|---------|-----|-----------|
+| Gentle | 7 s | Yellow | Short pulse |
+| Moderate | 15 s | Orange | Double pulse |
+| Urgent | 30 s | Red | Triple pulse |
+| Critical | 60 s | Red blink | Continuous |
+
+Thresholds and alert modality (LED only, vibration only, or both) are configurable from the companion app.
 
 ## Hardware
 
-### Components
-- [Seeed XIAO ESP32S3 Sense](https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html)
-- Built-in RGB LED (via `rgbLedWrite()`)
-- Tactile push button (6mm) + 10kΩ resistor
-- 400mAh LiPo battery + JST-PH 2.0 connector
-- Breadboard + jumper wires
-
-### Wiring
-
-| Component | Pin | GPIO |
-|-----------|-----|------|
-| Button | D1 | GPIO 2 |
-| Button Pull-up | D1 → 3.3V | 10kΩ resistor |
-| Battery ADC | D3/A2 | GPIO 4 (via 100kΩ/100kΩ divider to battery+) |
-| Vibration Motor | D2 | GPIO 3 (Phase B, not wired yet) |
-| Microphone | Built-in | GPIO 41/42 (PDM) |
+- **Board:** Seeed XIAO ESP32S3 Sense
+- **Microphone:** Built-in I2S PDM (GPIO 41/42)
+- **LED:** Built-in RGB via `rgbLedWrite()`
+- **Vibration:** Motor on GPIO 3 via S8050 NPN transistor
+- **Button:** Tactile on GPIO 2 (10kΩ pull-up to 3.3V)
+- **Battery:** 400mAh LiPo via JST-PH 2.0 connector
+- **Battery ADC:** GPIO 4 (100kΩ/100kΩ voltage divider)
+- **SD Card:** Built-in micro SD slot (GPIO 21 CS, FAT32)
 
 ### Button Controls
-- **Single press** — Toggle monitoring ↔ presentation mode
-- **Double tap** — Cycle VAD sensitivity (4 levels)
-- **Long press (3s)** — Deep sleep (press again to wake)
 
-## Build & Flash
+| Action | Function |
+|--------|----------|
+| Single press | Toggle monitoring / presentation mode |
+| Double tap | Start/stop voice capture to SD card |
+| Triple press | Cycle alert modality (LED / vibration / both) |
+| Long press (3 s) | Deep sleep (press again to wake) |
 
-1. Install [Arduino IDE 2.x](https://www.arduino.cc/en/software)
-2. Add ESP32 board support: `https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json`
-3. Install board: **esp32 by Espressif** in Board Manager
-4. Select board: **XIAO_ESP32S3**
-5. Select PSRAM: **OPI PSRAM**
-6. Select partition: **Huge APP (3MB No OTA/1MB SPIFFS)**
-7. Connect board via USB-C, select port
-8. Upload
+## Companion App
 
-### CLI Build (optional)
-```
-arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:PSRAM=opi .
-```
+React Native / Expo app providing:
 
-## Serial Monitor
+- **Voice trainer** — 55 guided exercises across 4 categories (warmup, breathing, articulation, speech), with streaks, daily rotation, favorites, and real audio recording
+- **Real-time dashboard** — live BLE connection to device showing speech duration, alert level, battery, and session stats
+- **Session history** — per-session analytics with alert timelines and lifetime stats
+- **Settings** — sensitivity, alert thresholds, alert modality, notification preferences, all persisted to SQLite
 
-Set baud rate to **115200**. Expected boot output:
-```
-Rambling Guardian booting...
-[EventBus] Initialized
-[Audio] Microphone initialized (PDM RX, 16kHz, 16-bit mono)
-[SpeechTimer] Initialized
-[LED] NeoPixel initialized
-[Button] Initialized on GPIO 2
-[Mode] Manager initialized (MONITORING mode)
-[Battery] Monitor initialized
-=== System ready ===
-```
+### App Tech Stack
+
+- React Native / Expo (SDK 54, file-based routing via expo-router)
+- SQLite (expo-sqlite, WAL mode) for local persistence
+- BLE communication via react-native-ble-plx
+- Zustand for state management
+- Local notifications via expo-notifications
+
+### Known Limitations
+
+- **Sessions = BLE connection windows**, not conversations. A single conversation spanning a reconnect creates two session entries. A future update will group connection windows into user-facing conversations.
+- **No cloud sync** — all data is local to the phone. Cloud backup is planned for Phase D.
+- **Energy-based VAD** — detects sound energy, not speech specifically. Background noise above the adaptive threshold will register as speech. ML-based VAD (ESP-SR) is deferred to a future phase.
+- **No speaker diarization** — the device does not distinguish who is speaking. Session modes (solo/group) require manual selection, which is deferred until auto-detection is available.
 
 ## Architecture
 
-Event-driven pub/sub — modules never call each other directly.
+Event-driven pub/sub on the firmware side — modules never call each other directly:
 
 ```
 Audio Input → [EVENT_SPEECH_STARTED/ENDED] → Speech Timer
-Speech Timer → [EVENT_ALERT_LEVEL_CHANGED] → LED Output
-Button Input → [EVENT_BUTTON_*] → Mode Manager
-Mode Manager → [EVENT_MODE_CHANGED] → Speech Timer, LED Output
-Mode Manager → [EVENT_SENSITIVITY_CHANGED] → Audio Input
-Battery Monitor → [EVENT_BATTERY_LOW/CRITICAL] → LED Output
+Speech Timer → [EVENT_ALERT_LEVEL_CHANGED] → LED Output, Vibration Output, BLE
+Button Input → [EVENT_BUTTON_*] → Mode Manager, Capture Mode
+Battery Monitor → [EVENT_BATTERY_LOW/CRITICAL] → LED Output, Capture Mode
 ```
+
+Capture mode subscribes to `EVENT_BATTERY_CRITICAL` to safely flush WAV and session data before the device enters deep sleep.
+
+## Build & Flash
+
+### Arduino IDE
+
+1. Board: **XIAO_ESP32S3** (Espressif ESP32 package)
+2. PSRAM: **OPI PSRAM**
+3. Partition: **Huge APP (3MB No OTA/1MB SPIFFS)**
+4. Upload via USB-C, serial monitor at 115200 baud
+
+### CLI
+
+```bash
+arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:PSRAM=opi .
+```
+
+### Companion App
+
+```bash
+cd app && npx expo start
+```
+
+## Project Direction
+
+Rambling Guardian is a personal tool — device-first monitoring with a phone companion for configuration, training, and review. Future phases include cloud backup (Google Drive), real-time transcription with speaker detection, AI coaching insights, and a dictation mode. See `PHASE_PLAN.md` for the full roadmap.
 
 ## License
 

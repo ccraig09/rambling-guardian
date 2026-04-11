@@ -17,8 +17,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.ccraig09.ramblingguardian",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Rambling Guardian needs microphone access for voice training enrollment."
-      }
+        "NSMicrophoneUsageDescription": "Rambling Guardian uses the microphone for voice training enrollment and live session transcription."
+      },
+      "appleTeamId": "DWPND8BT67"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +31,9 @@
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN"
       ]
     },
     "plugins": [

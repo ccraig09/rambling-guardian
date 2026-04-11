@@ -18,6 +18,14 @@ static bool gentlePulseActive = false;
 // Track whether motor is currently driven (avoid redundant writes)
 static bool motorOn = false;
 
+// Session confirmation haptic state
+static bool sessionStartPulse = false;
+static unsigned long sessionPulseStartMs = 0;
+
+static bool sessionStopPulse = false;
+static int sessionStopPulseCount = 0;
+static unsigned long sessionStopPulseStartMs = 0;
+
 static void motorWrite(uint8_t duty) {
   analogWrite(PIN_VIBRATION, duty);
   motorOn = (duty > 0);
@@ -50,24 +58,75 @@ static void onAlertChanged(EventType event, int payload) {
   currentAlert = newLevel;
 }
 
+static void onSessionStarted(EventType event, int payload) {
+  sessionStartPulse = true;
+  sessionPulseStartMs = millis();
+  motorWrite(180);
+}
+
+static void onSessionStopped(EventType event, int payload) {
+  sessionStopPulse = true;
+  sessionStopPulseCount = 0;
+  sessionStopPulseStartMs = millis();
+  motorWrite(180);
+}
+
 void vibrationOutputInit() {
   pinMode(PIN_VIBRATION, OUTPUT);
   analogWrite(PIN_VIBRATION, 0);
 
   eventBusSubscribe(EVENT_ALERT_LEVEL_CHANGED, onAlertChanged);
   eventBusSubscribe(EVENT_MODALITY_CHANGED, onModalityChanged);
+  eventBusSubscribe(EVENT_SESSION_STARTED, onSessionStarted);
+  eventBusSubscribe(EVENT_SESSION_STOPPED, onSessionStopped);
 
   Serial.println("[Vibration] Motor initialized on GPIO " + String(PIN_VIBRATION));
 }
 
 void vibrationOutputUpdate() {
+  unsigned long now = millis();
+
+  // Session start confirmation: single 100ms pulse
+  if (sessionStartPulse) {
+    if (now - sessionPulseStartMs >= 100) {
+      motorWrite(0);
+      sessionStartPulse = false;
+    }
+    return;  // Confirmation overrides alert patterns
+  }
+
+  // Session stop confirmation: two 50ms pulses with 80ms gap
+  if (sessionStopPulse) {
+    unsigned long elapsed = now - sessionStopPulseStartMs;
+    if (sessionStopPulseCount == 0) {
+      // First pulse
+      if (elapsed >= 50) {
+        motorWrite(0);
+        sessionStopPulseCount = 1;
+        sessionStopPulseStartMs = now;
+      }
+    } else if (sessionStopPulseCount == 1) {
+      // Gap
+      if (elapsed >= 80) {
+        motorWrite(180);
+        sessionStopPulseCount = 2;
+        sessionStopPulseStartMs = now;
+      }
+    } else {
+      // Second pulse
+      if (elapsed >= 50) {
+        motorWrite(0);
+        sessionStopPulse = false;
+      }
+    }
+    return;  // Confirmation overrides alert patterns
+  }
+
   // Suppress vibration if modality is LED-only
   if (currentModality == MODALITY_LED_ONLY) {
     if (motorOn) motorWrite(0);
     return;
   }
-
-  unsigned long now = millis();
 
   switch (currentAlert) {
 

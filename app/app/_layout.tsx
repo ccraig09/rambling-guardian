@@ -9,6 +9,9 @@ import { exerciseData } from '../src/data/exercises';
 import { fonts } from '../src/theme/typography';
 import { useTheme } from '../src/theme/theme';
 import { sessionTracker } from '../src/services/sessionTracker';
+import { transcriptService } from '../src/services/transcriptService';
+import { ensureProfileExists } from '../src/services/voiceProfileService';
+import { speakerLibraryService } from '../src/services/speakerLibraryService';
 import {
   requestNotificationPermission,
   scheduleDailyExerciseReminder,
@@ -19,16 +22,21 @@ import { useSettingsStore } from '../src/stores/settingsStore';
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(false);
-  const [fontsLoaded] = useFonts(fonts);
+  const [fontsLoaded, fontError] = useFonts(fonts);
   const theme = useTheme();
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
+  const hydrated = useSettingsStore((s) => s._hydrated);
 
   const initDb = () => {
     setDbError(false);
     getDatabase()
       .then(() => seedExercises(exerciseData))
+      .then(() => useSettingsStore.getState().hydrateFromDb())
       .then(async () => {
         sessionTracker.start();
+        transcriptService.start();
+        ensureProfileExists().catch(console.warn); // best-effort, non-blocking
+        speakerLibraryService.loadLibrary().catch(console.warn); // best-effort, non-blocking
         // Request permission then schedule (or skip) the daily reminder
         const { notificationsEnabled: enabled } = useSettingsStore.getState();
         const granted = await requestNotificationPermission();
@@ -43,14 +51,16 @@ export default function RootLayout() {
       });
   };
 
-  // Keep the daily reminder in sync whenever the user toggles notifications
+  // Keep the daily reminder in sync whenever the user toggles notifications.
+  // Gate on hydrated to avoid firing with default values before persistence loads.
   useEffect(() => {
+    if (!hydrated) return;
     if (notificationsEnabled) {
       scheduleDailyExerciseReminder(8).catch(console.warn);
     } else {
       cancelDailyExerciseReminder().catch(console.warn);
     }
-  }, [notificationsEnabled]);
+  }, [notificationsEnabled, hydrated]);
 
   useEffect(() => {
     initDb();
@@ -75,7 +85,7 @@ export default function RootLayout() {
     );
   }
 
-  if (!dbReady || !fontsLoaded) {
+  if (!dbReady || (!fontsLoaded && !fontError)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg }}>
         <ActivityIndicator size="large" color={theme.primary[500]} />

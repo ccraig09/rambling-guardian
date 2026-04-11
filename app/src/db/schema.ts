@@ -86,3 +86,98 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_streaks_date ON streaks(date);
   `);
 }
+
+export async function migrateToV2(db: SQLiteDatabase): Promise<void> {
+  // Add trigger_source, session_type, boot_id, device_sequence columns (D-pre A + DpB.5)
+  const migrations = [
+    `ALTER TABLE sessions ADD COLUMN trigger_source TEXT DEFAULT 'button'`,
+    `ALTER TABLE sessions ADD COLUMN session_type TEXT DEFAULT 'active_session'`,
+    `ALTER TABLE sessions ADD COLUMN boot_id INTEGER`,
+    `ALTER TABLE sessions ADD COLUMN device_sequence INTEGER`,
+    // D-pre B.7: transcript/retention placeholders (empty for now, Phase D populates)
+    `ALTER TABLE sessions ADD COLUMN transcript TEXT`,
+    `ALTER TABLE sessions ADD COLUMN transcript_timestamps TEXT`,
+    `ALTER TABLE sessions ADD COLUMN audio_retention TEXT DEFAULT 'transcript_only'`,
+  ];
+
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch (e: any) {
+      // Column already exists — ignore "duplicate column" errors
+      if (!e.message?.includes('duplicate column')) {
+        throw e;
+      }
+    }
+  }
+}
+
+export async function migrateToV3(db: SQLiteDatabase): Promise<void> {
+  const migrations = [
+    `ALTER TABLE sessions ADD COLUMN sync_status TEXT`,
+    `ALTER TABLE sessions ADD COLUMN received_at INTEGER`,
+    `ALTER TABLE sessions ADD COLUMN processed_at INTEGER`,
+    `ALTER TABLE sessions ADD COLUMN committed_at INTEGER`,
+    `ALTER TABLE sessions ADD COLUMN retention_tier INTEGER DEFAULT 1`,
+    `ALTER TABLE sessions ADD COLUMN retention_until INTEGER`,
+  ];
+
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch (e: any) {
+      if (!e.message?.includes('duplicate column')) {
+        throw e;
+      }
+    }
+  }
+
+  // Backfill: device-synced sessions get sync_status = 'committed'
+  await db.execAsync(
+    `UPDATE sessions SET sync_status = 'committed', committed_at = ended_at WHERE synced_from_device = 1 AND sync_status IS NULL`,
+  );
+}
+
+export async function migrateToV4(db: SQLiteDatabase): Promise<void> {
+  // Voice profiles table
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS voice_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      label TEXT NOT NULL DEFAULT 'Me',
+      status TEXT NOT NULL DEFAULT 'enrolled',
+      enrolled_sample_ids TEXT NOT NULL,
+      embedding_data BLOB,
+      embedding_model TEXT,
+      embedding_version TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
+  // Speaker map column on sessions
+  const migrations = [
+    `ALTER TABLE sessions ADD COLUMN speaker_map TEXT`,
+  ];
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch (e: any) {
+      if (!e.message?.includes('duplicate column')) {
+        throw e;
+      }
+    }
+  }
+}
+
+export async function migrateToV5(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS known_speakers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_seen_at INTEGER,
+      session_count INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+}

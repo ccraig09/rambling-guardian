@@ -161,7 +161,7 @@ export default function HomeScreen() {
               </Text>
               <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
                 {connected
-                  ? `RamblingGuard · ${battery}% battery`
+                  ? `RamblingGuard · ${battery === null ? 'USB power' : `${battery}% battery`}`
                   : 'Go to Session tab to connect'}
               </Text>
             </View>

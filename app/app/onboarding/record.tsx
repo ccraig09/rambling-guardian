@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, Alert, Linking } from 'react-native';
-import { router } from 'expo-router';
-import { Audio } from 'expo-av';
+import { router, useFocusEffect } from 'expo-router';
+import type { AudioPlayer } from 'expo-audio';
 import { useTheme } from '../../src/theme/theme';
 import { VoicePromptCard } from '../../src/components/VoicePromptCard';
 import { voicePrompts } from '../../src/data/voicePrompts';
@@ -14,6 +14,8 @@ import {
   stopPlayback,
 } from '../../src/services/voiceRecorder';
 import { insertVoiceSample } from '../../src/db/voiceSamples';
+import { useDeviceStore } from '../../src/stores/deviceStore';
+import { useSettingsStore } from '../../src/stores/settingsStore';
 
 type RecordingState = 'idle' | 'recording' | 'complete' | 'error';
 
@@ -21,6 +23,9 @@ const MIN_DURATION_MS = 3000;
 
 export default function RecordScreen() {
   const theme = useTheme();
+  const deviceBattery = useDeviceStore((s) => s.battery);
+  const deviceConnected = useDeviceStore((s) => s.connected);
+  const minBattery = useSettingsStore((s) => s.minBatteryForRecording);
   const [promptIndex, setPromptIndex] = useState(0);
   const [state, setState] = useState<RecordingState>('idle');
   const [audioLevel, setAudioLevel] = useState(0);
@@ -28,7 +33,7 @@ export default function RecordScreen() {
   const [lastRecordingPath, setLastRecordingPath] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
-  const playbackSoundRef = useRef<Audio.Sound | null>(null);
+  const playbackSoundRef = useRef<AudioPlayer | null>(null);
 
   // Set up metering callback once
   useEffect(() => {
@@ -38,15 +43,18 @@ export default function RecordScreen() {
     };
   }, []);
 
-  // Clean up playback sound on unmount
-  useEffect(() => {
-    return () => {
-      if (playbackSoundRef.current) {
-        stopPlayback(playbackSoundRef.current).catch(() => {});
-        playbackSoundRef.current = null;
-      }
-    };
-  }, []);
+  // Stop playback + cancel recording on screen blur or unmount
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (playbackSoundRef.current) {
+          stopPlayback(playbackSoundRef.current).catch(() => {});
+          playbackSoundRef.current = null;
+        }
+        cancelRecording().catch(() => {});
+      };
+    }, []),
+  );
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -54,6 +62,29 @@ export default function RecordScreen() {
       timerRef.current = null;
     }
   }, []);
+
+  // Critical battery auto-stop: save recording safely if battery drops below 5%
+  useEffect(() => {
+    if (state !== 'recording' || !deviceConnected) return;
+    if (deviceBattery !== null && deviceBattery < 5) {
+      clearTimer();
+      stopRecording()
+        .then((result) => {
+          if (result) {
+            insertVoiceSample(result.filePath, result.durationMs).catch(console.warn);
+            setLastRecordingPath(result.filePath);
+          }
+          setState('complete');
+          setAudioLevel(0);
+          Alert.alert(
+            'Recording Saved',
+            'Device battery is critically low. Your recording was saved automatically.',
+            [{ text: 'OK' }],
+          );
+        })
+        .catch(console.warn);
+    }
+  }, [state, deviceConnected, deviceBattery, clearTimer]);
 
   const startTimer = useCallback(() => {
     startTimeRef.current = Date.now();
@@ -83,6 +114,15 @@ export default function RecordScreen() {
       }
       setAudioLevel(0);
     } else if (state === 'idle' || state === 'error') {
+      // Battery guard: don't start recording if device battery is too low
+      if (deviceConnected && deviceBattery !== null && deviceBattery < minBattery) {
+        Alert.alert(
+          'Low Battery',
+          `Device battery is at ${deviceBattery}%. Recording requires at least ${minBattery}% battery.`,
+          [{ text: 'OK' }],
+        );
+        return;
+      }
       // Start recording
       try {
         const started = await startRecording();
@@ -114,7 +154,7 @@ export default function RecordScreen() {
         router.replace('/onboarding/complete');
       }
     }
-  }, [state, promptIndex, clearTimer, startTimer]);
+  }, [state, promptIndex, clearTimer, startTimer, deviceConnected, deviceBattery, minBattery]);
 
   const handlePlayback = useCallback(async () => {
     if (!lastRecordingPath) return;
@@ -124,13 +164,14 @@ export default function RecordScreen() {
       playbackSoundRef.current = null;
     }
     try {
-      const sound = await playRecording(lastRecordingPath);
-      playbackSoundRef.current = sound;
+      const player = await playRecording(lastRecordingPath);
+      playbackSoundRef.current = player;
       // Auto-cleanup when playback finishes
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if ('didJustFinish' in status && status.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
-          if (playbackSoundRef.current === sound) {
+      const subscription = player.addListener('playbackStatusUpdate', (status) => {
+        if (status.didJustFinish) {
+          player.remove();
+          subscription.remove();
+          if (playbackSoundRef.current === player) {
             playbackSoundRef.current = null;
           }
         }

@@ -13,7 +13,6 @@ import { getCurrentStreak } from '../db/exercises';
 // registered before any notification can fire.
 ExpoNotifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
     shouldShowBanner: true,
     shouldShowList: true,
     shouldPlaySound: false,
@@ -30,6 +29,15 @@ export async function requestNotificationPermission(): Promise<boolean> {
   if (existing === 'granted') return true;
   const { status } = await ExpoNotifications.requestPermissionsAsync();
   return status === 'granted';
+}
+
+/** Read OS notification permission status without prompting. */
+export async function getNotificationPermissionStatus(): Promise<'granted' | 'denied' | 'undetermined'> {
+  if (Platform.OS === 'web') return 'denied';
+  const { status } = await ExpoNotifications.getPermissionsAsync();
+  if (status === 'granted') return 'granted';
+  if (status === 'denied') return 'denied';
+  return 'undetermined';
 }
 
 // ─── Daily exercise reminder ──────────────────────────────────────────────────

@@ -13,4 +13,8 @@ void audioSetSensitivity(int level);  // 0-3, indexes VAD_THRESHOLDS
 // Returns number of samples available (0 if none yet).
 int audioGetLastSamples(const int16_t** buf);
 
+void audioInputSuspend();   // Stop I2S DMA reads (saves power in IDLE)
+void audioInputResume();    // Restart I2S and re-calibrate VAD
+bool audioInputIsActive();  // True if I2S is running and processing
+
 #endif // AUDIO_INPUT_H

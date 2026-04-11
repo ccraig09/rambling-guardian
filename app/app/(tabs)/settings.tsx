@@ -8,7 +8,7 @@
  *
  * Offline-safe: all writes go to Zustand first; BLE writes only when connected.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,10 @@ import {
   Switch,
   StyleSheet,
   ActivityIndicator,
+  Linking,
+  AppState,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/theme';
 import { useDeviceState } from '../../src/hooks/useDeviceState';
@@ -26,6 +29,7 @@ import { useSettingsStore } from '../../src/stores/settingsStore';
 import { bleService } from '../../src/services/bleManager';
 import { AlertModality } from '../../src/types';
 import type { AlertThresholds } from '../../src/types';
+import { getNotificationPermissionStatus } from '../../src/services/notifications';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -172,6 +176,20 @@ export default function SettingsScreen() {
   const [isApplyingThresholds, setIsApplyingThresholds] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
 
+  // Check OS notification permission on mount and when app returns to foreground
+  useEffect(() => {
+    const checkPermission = () => {
+      getNotificationPermissionStatus().then((status) => {
+        settings.setNotificationPermissionStatus(status);
+      }).catch(console.warn);
+    };
+    checkPermission();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') checkPermission();
+    });
+    return () => sub.remove();
+  }, []);
+
   // ------------------------------------------------------------------
   // Handlers
   // ------------------------------------------------------------------
@@ -214,8 +232,23 @@ export default function SettingsScreen() {
   // Helpers
   // ------------------------------------------------------------------
 
+  const isUsbPower = deviceState.battery === null;
   const batteryColor =
-    deviceState.battery <= 20 ? theme.semantic.error : theme.semantic.success;
+    deviceState.battery === null
+      ? theme.semantic.success
+      : deviceState.battery <= 20
+        ? theme.semantic.error
+        : theme.semantic.success;
+
+  const batteryAge = bleService.getBatteryAge();
+  const batteryFresh = batteryAge < 60_000; // less than 1 minute old
+  const batteryAgeLabel = isUsbPower
+    ? '' // freshness label not meaningful on USB power
+    : batteryFresh
+      ? 'Live'
+      : batteryAge < Infinity
+        ? `${Math.round(batteryAge / 1000)}s ago`
+        : '';
 
   function segmentStyle(active: boolean) {
     return [
@@ -310,13 +343,13 @@ export default function SettingsScreen() {
                 <View style={styles.segmentGroup}>
                   {[
                     { value: AlertModality.LED_ONLY, label: 'LED' },
-                    { value: AlertModality.VIBRATION_ONLY, label: 'Vibe' },
+                    { value: AlertModality.VIBRATION_ONLY, label: 'Vibrate' },
                     { value: AlertModality.BOTH, label: 'Both' },
                   ].map(({ value, label }) => (
                     <Pressable
                       key={value}
                       onPress={() => handleModalityChange(value)}
-                      style={[segmentStyle(deviceState.modality === value), { paddingHorizontal: 8 }]}
+                      style={[segmentStyle(deviceState.modality === value), styles.segmentWide]}
                     >
                       <Text style={segmentTextStyle(deviceState.modality === value)}>
                         {label}
@@ -441,8 +474,51 @@ export default function SettingsScreen() {
             />
           </View>
 
+          {/* Min Battery for Recording */}
+          <View
+            style={[
+              styles.settingRow,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.elevated,
+              },
+            ]}
+          >
+            <View style={styles.settingLeft}>
+              <Text style={[theme.type.body, { color: theme.text.primary }]}>
+                Min Battery for Recording
+              </Text>
+              <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
+                Device battery threshold to allow recording
+              </Text>
+            </View>
+            <Stepper
+              value={settings.minBatteryForRecording}
+              unit="%"
+              onDecrement={() =>
+                settings.setMinBatteryForRecording(
+                  Math.max(5, settings.minBatteryForRecording - 5),
+                )
+              }
+              onIncrement={() =>
+                settings.setMinBatteryForRecording(
+                  Math.min(30, settings.minBatteryForRecording + 5),
+                )
+              }
+              theme={theme}
+            />
+          </View>
+
           {/* Notifications */}
-          <View style={styles.settingRow}>
+          <View
+            style={[
+              styles.settingRow,
+              settings.notificationsEnabled && settings.notificationPermissionStatus === 'denied' && {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.elevated,
+              },
+            ]}
+          >
             <View style={styles.settingLeft}>
               <Text style={[theme.type.body, { color: theme.text.primary }]}>Notifications</Text>
               <Text style={[theme.type.small, { color: theme.text.muted, marginTop: 2 }]}>
@@ -456,6 +532,24 @@ export default function SettingsScreen() {
               thumbColor={theme.text.onColor}
             />
           </View>
+
+          {/* OS permission warning — only when explicitly denied, not undetermined */}
+          {settings.notificationsEnabled && settings.notificationPermissionStatus === 'denied' && (
+            <Pressable
+              onPress={() => Linking.openSettings()}
+              style={[styles.settingRow, { gap: 8, paddingVertical: 10 }]}
+            >
+              <Ionicons name="warning-outline" size={18} color={theme.semantic.warning} />
+              <Text
+                style={[
+                  theme.type.small,
+                  { color: theme.semantic.warning, flex: 1 },
+                ]}
+              >
+                Notifications are enabled but your iPhone has blocked them. Tap to open Settings.
+              </Text>
+            </Pressable>
+          )}
         </SettingGroup>
 
         {/* ================================================================
@@ -471,13 +565,31 @@ export default function SettingsScreen() {
             value={deviceState.connected ? 'RamblingGuard' : '—'}
             theme={theme}
           />
-          <InfoRow
-            label="Battery"
-            value={deviceState.connected ? `${deviceState.battery}%` : '—'}
-            valueColor={deviceState.connected ? batteryColor : undefined}
-            theme={theme}
-            isLast
-          />
+          <View
+            style={[styles.row, { minHeight: 50 }]}
+          >
+            <Text style={[theme.type.body, { color: theme.text.primary }]}>Battery</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[theme.type.body, { color: deviceState.connected ? batteryColor : theme.text.secondary }]}>
+                {deviceState.connected
+                  ? isUsbPower ? 'USB Power' : `${deviceState.battery}%`
+                  : '—'}
+              </Text>
+              {deviceState.connected && batteryAgeLabel !== '' && (
+                <Text
+                  style={[
+                    theme.type.small,
+                    {
+                      color: batteryFresh ? theme.semantic.success : theme.text.muted,
+                      fontFamily: theme.fontFamily.semibold,
+                    },
+                  ]}
+                >
+                  {batteryAgeLabel}
+                </Text>
+              )}
+            </View>
+          </View>
         </SettingGroup>
 
         {/* Bottom padding */}
@@ -525,9 +637,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
   },
-  /** Single segment button — 44dp square */
+  /** Single segment button — 44dp square (for numeric labels) */
   segment: {
     width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /** Wider segment for text labels (LED / Vibrate / Both) */
+  segmentWide: {
+    width: undefined,
+    paddingHorizontal: 14,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',

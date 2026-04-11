@@ -2,9 +2,9 @@
 #include "event_bus.h"
 #include "config.h"
 
-// Battery voltage reading via external voltage divider on GPIO 4 (D3/A2).
-// TODO: Wire 100k/100k voltage divider from battery positive to GPIO 4.
-// Without the divider wired, readings will be 0V or erratic on USB power.
+// Battery voltage reading via 100k/100k voltage divider on GPIO 4 (D3/A2).
+// On USB power without a battery connected, readings will be near 0V — the
+// batteryMonitorUpdate() function skips shutdown logic when voltage < 2.0V.
 
 static unsigned long lastCheck = 0;
 static int batteryPercent = 100;
@@ -42,9 +42,10 @@ void batteryMonitorUpdate() {
   Serial.print(batteryPercent);
   Serial.println("%)");
 
-  // Skip shutdown logic if no battery is wired (voltage near zero on USB power)
+  // No battery wired — USB power only. Set sentinel so BLE sends 255.
   if (voltage < 2.0) {
-    Serial.println("[Battery] No battery detected — skipping shutdown");
+    batteryPercent = -1;
+    Serial.println("[Battery] No battery detected (USB power)");
     return;
   }
 
@@ -54,7 +55,12 @@ void batteryMonitorUpdate() {
     eventBusPublish(EVENT_BATTERY_CRITICAL, batteryPercent);
     Serial.println("[Battery] CRITICAL — initiating graceful shutdown");
     esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTON), ESP_EXT1_WAKEUP_ANY_LOW);
-    delay(1000);
+    // PROVISIONAL: 2s delay as temporary safety margin for capture_mode to flush
+    // WAV data and session log after receiving EVENT_BATTERY_CRITICAL. The event-bus
+    // subscription is the real safe-stop mechanism — this delay is a stopgap.
+    // Future: replace with a completion handshake (capture_mode sets a "flush
+    // complete" flag that battery_monitor checks before sleeping).
+    delay(2000);
     esp_deep_sleep_start();
   }
   else if (batteryPercent <= BATTERY_WARNING_PERCENT && !warningFired) {

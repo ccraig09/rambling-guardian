@@ -1,6 +1,9 @@
 #include "session_logger.h"
 #include "event_bus.h"
 #include "sd_card.h"
+#include "backlog.h"
+#include "boot_state.h"
+#include "mode_manager.h"
 #include <SD.h>
 
 // ============================================
@@ -36,6 +39,51 @@ static void onSpeechStarted(EventType event, int payload) {
   speechSegments++;
 }
 
+static void onSessionStarted(EventType event, int payload) {
+  sessionStartMs = millis();
+  alertCount = 0;
+  maxAlertLevel = 0;
+  speechSegments = 0;
+}
+
+static void onSessionStopped(EventType event, int payload) {
+  if (!backlogIsReady()) {
+    Serial.println("[Session] SD/backlog unavailable — session metadata not persisted");
+    return;
+  }
+
+  SessionRecord record;
+  memset(&record, 0, sizeof(record));
+  record.bootId = bootStateGetId();
+  record.deviceSessionSequence = bootStateNextSessionSequence();
+  record.startedAtMsSinceBoot = sessionStartMs;
+  record.endedAtMsSinceBoot = millis();
+  // By the time SESSION_STOPPED fires, mode_manager already changed to IDLE.
+  // Record MODE_ACTIVE_SESSION since we know this was an active session.
+  record.mode = (uint8_t)MODE_ACTIVE_SESSION;
+  record.triggerSource = (uint8_t)modeManagerGetTriggerSource();
+  record.alertCount = alertCount;
+  record.maxAlert = maxAlertLevel;
+  record.speechSegments = speechSegments;
+  record.sensitivity = currentSensitivity;
+  record.syncStatus = SYNC_PENDING;
+
+  if (backlogAppendSession(record)) {
+    Serial.printf("[Session] Backlog: boot=%lu seq=%u duration=%lums alerts=%d\n",
+                  (unsigned long)record.bootId, record.deviceSessionSequence,
+                  (unsigned long)(record.endedAtMsSinceBoot - record.startedAtMsSinceBoot),
+                  record.alertCount);
+  } else {
+    Serial.println("[Session] WARNING: Backlog append failed (storage full?)");
+  }
+
+  // Reset counters for next session
+  alertCount = 0;
+  maxAlertLevel = 0;
+  speechSegments = 0;
+  sessionStartMs = millis();
+}
+
 // ============================================
 // Public API
 // ============================================
@@ -50,6 +98,8 @@ void sessionLoggerInit() {
   eventBusSubscribe(EVENT_ALERT_LEVEL_CHANGED, onAlertLevelChanged);
   eventBusSubscribe(EVENT_SENSITIVITY_CHANGED, onSensitivityChanged);
   eventBusSubscribe(EVENT_SPEECH_STARTED, onSpeechStarted);
+  eventBusSubscribe(EVENT_SESSION_STARTED, onSessionStarted);
+  eventBusSubscribe(EVENT_SESSION_STOPPED, onSessionStopped);
 
   Serial.println("[Session] Logger initialized");
 }

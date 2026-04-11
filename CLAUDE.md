@@ -39,10 +39,9 @@ Build size after Phase B: 441KB flash (13%), 34KB RAM (10%) — baseline for tra
 
 ## Architecture
 Modules communicate via event bus only — never call each other directly.
-Audio → VAD → SpeechTimer → EventBus → LED/Vibration/BLE subscribers.
-SD card recording: EVENT_BUTTON_DOUBLE → CaptureMode → WavWriter → SD card. Auto-stops after 5s silence.
-New events (A.5): EVENT_SD_READY, EVENT_CAPTURE_STARTED, EVENT_CAPTURE_STOPPED
-New events (B): EVENT_BUTTON_TRIPLE, EVENT_MODALITY_CHANGED
+**Idle by default (Phase D-pre A):** Device boots into MODE_IDLE (not listening). Sessions start only when triggered (button press, BLE command, future Apple Watch shortcut). Audio I2S is suspended in IDLE to save power (~20mA vs ~50mA).
+Session lifecycle: trigger → EVENT_SESSION_START_REQUESTED → mode_manager validates → EVENT_SESSION_STARTED → Audio resumes, VAD+SpeechTimer active → trigger stop → EVENT_SESSION_STOP_REQUESTED → EVENT_SESSION_STOPPED → Audio suspends.
+SD card recording: EVENT_BUTTON_DOUBLE → CaptureMode → WavWriter → SD card. Only from IDLE (ignored during active session). Auto-stops after 5s silence.
 Alert modality: triple-press cycles LED only / vibration only / both. Default: both. Resets on boot.
 Vibration motor on GPIO 3 via S8050 NPN transistor. PWM patterns per alert level. SPI pins: expansion board uses GPIO 7/8/9 (not defaults).
 Button is interrupt-driven (GPIO CHANGE mode) — never poll, I2S blocks for ~100ms per loop.
@@ -52,6 +51,56 @@ Debug serial prints are gated by `#define DEBUG_AUDIO` in config.h (commented ou
 VAD auto-calibrates on boot (~6s): 5 warmup + 30 measurement windows × 200ms. Serial: `[Audio] Calibrated: ambient=XX, threshold=YY`
 Sensitivity levels (0–3) apply multipliers { 1, 2, 4, 8 } on calibrated baseline. Threshold capped at 80 — safe to boot mid-meeting.
 
+### Standalone Backlog (Phase D-pre B)
+**Metadata-first standalone persistence.** Session metadata (timestamps, alerts, speech segments, trigger source) persists to SD for later sync — not audio, not transcripts.
+Boot-relative timestamps: `bootId` (monotonic counter in `/RG/boot_id.bin`) + `deviceSessionSequence` + `millis()` offsets. Phone anchors wall-clock per-boot on BLE connect.
+Backlog file: versioned `/RG/backlog.bin` with 16-byte header ("RGBL" magic, version, recordSize) and 32-byte `SessionRecord` structs. Max 128 in-memory. Corruption → .bak rename + fresh file. Compaction when >100 records and >50% synced.
+BLE sync: `4A98000C` (SYNC_DATA) — manifest(0x01)/request(0x02)/ack(0x03)/commit(0x04) protocol. Replay-safe via (bootId, sequence) pairs. Idempotent imports on app side. Partial success is normal.
+No-SD graceful degradation: session runs, BLE live stats work, backlog skipped. Unwritten data is lost on power-off — no false recovery promises.
+Build size after D-pre B: 737KB flash (22%), 48KB RAM (14%).
+
+### Sync Status Model (Phase D.0)
+Per-session `sync_status`: NULL (local) | pending | received | processed | acked | committed | failed.
+Single watermark advances only on `committed` (device confirmed SD write). `acked` is transitional, not equivalent to synced.
+syncCheckpointService.ts manages status transitions. syncEngine.ts retains the BLE state machine. syncTransport.ts wires status calls into the BLE sync cycle.
+Watermark stored in settings table under key `syncWatermark`.
+
+### Retention Tiers (Phase D.0)
+| Tier | Data | Retention | Auto-Prune |
+|------|------|-----------|------------|
+| 1 | Metadata | Forever | Never |
+| 2 | Transcript | Indefinite | Manual only |
+| 3 | Alert clips | 30 days | Yes |
+| 4 | Full audio | 7 days | Yes |
+retentionService.ts enforces. `runPruneNow()` for manual trigger. `startRetentionEnforcement()` on app launch + daily interval. Tiers 3-4 are no-ops until audio artifacts exist.
+`retention_tier` on session row = current effective/highest tier. Future per-artifact table may complement this.
+Favorited session exemption deferred until favorited column exists.
+SyncTarget type in syncTarget.ts documents future cloud adapter contract — not implemented in D.0.
+
+### Transcript Pipeline (Phase D.1)
+Phone mic captures audio via `react-native-live-audio-stream` during active sessions (16kHz/mono/16-bit PCM). Audio streams to Deepgram Nova-3 over raw WebSocket (`Authorization: Token` header — query param does NOT work). Live transcript appears in session screen via `transcriptStore` (Zustand). On session end, finalized plain text + structured segment JSON persisted to sessions table (`transcript`, `transcript_timestamps` columns). Retention tier auto-promoted to TRANSCRIPT.
+`transcriptService.ts` orchestrates the pipeline, consuming `activeSessionId` from `sessionStore` (set by `sessionTracker`). `deepgramClient.ts` wraps the Deepgram WebSocket. `transcriptStore.ts` holds reactive UI state (segments, interim text, status).
+API key (`EXPO_PUBLIC_DEEPGRAM_API_KEY`) is client-side for prototyping only — move behind backend auth before production.
+Degradation: if WebSocket drops, status → `interrupted`, preserve existing transcript, stop capture (intentional v1 simplification).
+
+### Speaker Attribution (Phase D.2)
+Deepgram diarization (`diarize: true`) assigns speaker labels per word. `deepgramClient.ts` picks the dominant speaker per segment. `TranscriptSegment.speaker` holds the raw diarized label ("Speaker 0") — never mutated with display names.
+`speakerService.ts` manages per-session mappings: diarized label → display name + confidence (provisional/user_confirmed). Default "Me" assignment is conditional: 1-2 speakers only, generic labels for 3+.
+`speakerStore.ts` (Zustand) holds reactive mapping state. `LiveTranscript` resolves display names at render time. Tap speaker label → `SpeakerPicker` modal for correction.
+`speaker_map TEXT` column on sessions table persists final mappings as JSON on session end.
+`voice_profiles` table stores enrollment data (sample references, NULL embedding in D.2). `voiceProfileService.ensureProfileExists()` runs at startup (non-blocking, best-effort).
+
+### Speaker Library (Phase D.3)
+`speakerLibraryService.ts` owns cross-session speaker identity — separate from `speakerService` (session-scoped). `known_speakers` table (migrateToV5): `id`, `name UNIQUE`, `created_at`, `updated_at`, `last_seen_at`, `session_count`.
+Name normalization: trim + collapse internal spaces + preserve casing. Applied on all writes. "Me" is never stored in the library.
+`loadLibrary()` runs at app startup (non-blocking, after DB init). All writes are DB-first — cache updates only on DB success to prevent divergence.
+`session_count` increments once per session at finalization (not per segment). Deduplicated via `Set` if multiple diarized labels map to the same name.
+`SpeakerPicker` shows library names (recency order) between "Me" and custom input. On confirm, calls both `speakerService.reassignSpeaker()` and `speakerLibraryService.addSpeaker()` (skips "Me").
+`NewSpeakerBanner` (presentational) shows inline pill in `LiveTranscript` when provisional non-"Me" speakers exist. Logic (unnamed count, tap target) lives in `LiveTranscript`. Unresolved speakers stay provisional in `speaker_map` if ignored during session — data ready for future post-session editing.
+
+### Battery Safe-Stop Sequence
+When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
+
 ## Workflow Docs
 - **Phase Plan:** `PHASE_PLAN.md` — living ticket checklist, current phase + all future phases
 - **Agent Workflow:** `AGENT_WORKFLOW.md` — 5-step per-ticket process, skills table, personas
@@ -59,7 +108,8 @@ Sensitivity levels (0–3) apply multipliers { 1, 2, 4, 8 } on calibrated baseli
 - **Smoke Tests:** `SMOKE_TESTS.md` — Phase A.1 verification checklist
 
 ## Key Docs (all in this repo)
-- **Design Spec:** `docs/specs/2026-03-29-rambling-guardian-design.md` — full architecture, edge cases, all 5 phases
+- **Design Spec:** `docs/specs/2026-03-29-rambling-guardian-design.md` — original architecture (always-listening model, pre-D-pre)
+- **Triggered Activation Brief:** `docs/specs/2026-04-07-triggered-activation-design.md` — idle-by-default model, session triggers, standalone backlog, BLE session control
 - **Implementation Plan:** `docs/plans/2026-03-29-rambling-guardian-phase-a.md` — exact code for every task
 - **Full Roadmap:** `docs/plans/2026-04-01-full-product-roadmap.md` — Phases A.5 through F with ticket details
 - **Original Intake:** `docs/reference/original-intake.md` — founder call transcript/brief
@@ -120,8 +170,13 @@ npx expo install @expo/vector-icons               # add icons (not auto-included
 - **DESIGN.md**: exists at repo root — reference for all UI decisions (brand, colors, tokens, components)
 - **Session modes (C.5)**: deferred to Phase D — auto-detection needs speaker diarization; manual switching is ADHD-hostile
 - **Skeleton loaders**: use `Animated.loop` opacity pulse instead of `ActivityIndicator` for initial loads
-- **BLE GATT UUIDs**: `4A980001–4A98000A` (service + 9 characteristics) — see `config.h`
+- **BLE GATT UUIDs**: `4A980001–4A98000B` (service + 10 characteristics) — see `config.h`
+- **BLE Session Control**: `4A98000B` — Read+Write+Notify. Write 0x01=start session, 0x02=stop. Read/Notify: 0x00=idle, 0x01=active.
+- **BLE Sync Data**: `4A98000C` — Read+Write+Notify. Backlog sync protocol: 0x01=manifest, 0x02=next record, 0x03=ack, 0x04=commit.
 - **PAUSE_THRESHOLD_MS**: 3000ms (tuned on device — 1200ms too sensitive, 5000ms too slow)
+- **Deepgram API key**: `EXPO_PUBLIC_DEEPGRAM_API_KEY` env var. Client-side prototyping only — do not ship to TestFlight without reviewing security model.
+- **react-native-live-audio-stream**: requires EAS build (not Expo Go). 16kHz/mono/16-bit PCM. `wavFile: ''` required in init options (unused — streaming to Deepgram).
+- **Deepgram WebSocket auth**: must use `Authorization: Token KEY` header. Token query param does NOT work on iOS RN 0.81.
 
 ## IDE / Tooling Notes
 - **LSP diagnostics are always false positives** — clang has no Arduino headers; `Serial`, `millis()`, `I2SClass` etc. always show as errors in the IDE. Ignore them. `arduino-cli compile` is the only truth.
@@ -136,17 +191,19 @@ npx expo install @expo/vector-icons               # add icons (not auto-included
 ## Module Patterns
 | Module | Init | Update | Pattern |
 |--------|------|--------|---------|
-| audio_input | Y | Y | I2S reader + VAD, exposes samples via audioGetLastSamples() |
+| audio_input | Y | Y | I2S reader + VAD, suspend/resume on mode change, re-calibrates on resume |
 | speech_timer | Y | Y | Event subscriber, tracks speech duration |
 | led_output | Y | Y | Event subscriber, LED animation loop, capture override → magenta |
 | button_input | Y | Y | GPIO poller, debounce, multi-tap detection |
-| mode_manager | Y | N | Event subscriber only (button → mode changes) |
+| mode_manager | Y | N | Event subscriber, session lifecycle (IDLE↔ACTIVE_SESSION), trigger validation |
 | battery_monitor | Y | Y | ADC poller, low battery events |
 | sd_card | Y | N | Init-only, exposes sdCardIsReady() utility |
 | wav_writer | N | N | Utility API — open/write/close, called by capture_mode |
 | capture_mode | Y | Y | State machine (IDLE/RECORDING), feeds audio to wav_writer |
-| session_logger | Y | N | Event subscriber, accumulates stats, flush-on-demand to CSV |
-| vibration_output | Y | Y | Event subscriber, PWM patterns per alert level, modality-aware |
+| session_logger | Y | N | Event subscriber, accumulates stats, appends to backlog on SESSION_STOPPED |
+| vibration_output | Y | Y | Event subscriber, PWM patterns per alert level + session confirmation haptics |
+| boot_state | Y | N | Persists monotonic boot ID to SD, tracks per-boot session sequence |
+| backlog | Y | N | Versioned binary backlog (32-byte records), in-memory cache, compaction, sync checkpoint |
 
 ## Non-Negotiables
 - Every task gets a git commit with conventional commit message

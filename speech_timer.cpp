@@ -7,7 +7,6 @@ static unsigned long lastSpeechTime = 0;
 static bool isSpeaking = false;
 static bool timerRunning = false;
 static AlertLevel currentLevel = ALERT_NONE;
-static bool alertsSuppressed = false;
 
 // Runtime-configurable thresholds (defaults from config.h, writable via BLE)
 static unsigned long thresholdGentle   = ALERT_GENTLE_MS;
@@ -49,24 +48,31 @@ static void onThresholdsChanged(EventType event, int payload) {
                 thresholdGentle, thresholdModerate, thresholdUrgent, thresholdCritical);
 }
 
-static void onModeChanged(EventType event, int payload) {
-  DeviceMode mode = (DeviceMode)payload;
-  alertsSuppressed = (mode == MODE_PRESENTATION);
-  if (alertsSuppressed) {
-    timerRunning = false;
-    speechStartTime = 0;
-    isSpeaking = false;
-    if (currentLevel != ALERT_NONE) {
-      currentLevel = ALERT_NONE;
-      eventBusPublish(EVENT_ALERT_LEVEL_CHANGED, ALERT_NONE);
-    }
+static void resetTimerState() {
+  timerRunning = false;
+  speechStartTime = 0;
+  isSpeaking = false;
+  if (currentLevel != ALERT_NONE) {
+    currentLevel = ALERT_NONE;
+    eventBusPublish(EVENT_ALERT_LEVEL_CHANGED, ALERT_NONE);
   }
+}
+
+static void onSessionStarted(EventType event, int payload) {
+  resetTimerState();
+  Serial.println("[SpeechTimer] Session started — timer reset");
+}
+
+static void onSessionStopped(EventType event, int payload) {
+  resetTimerState();
+  Serial.println("[SpeechTimer] Session stopped — timer reset");
 }
 
 void speechTimerInit() {
   eventBusSubscribe(EVENT_SPEECH_STARTED, onSpeechEvent);
   eventBusSubscribe(EVENT_SPEECH_ENDED, onSpeechEvent);
-  eventBusSubscribe(EVENT_MODE_CHANGED, onModeChanged);
+  eventBusSubscribe(EVENT_SESSION_STARTED, onSessionStarted);
+  eventBusSubscribe(EVENT_SESSION_STOPPED, onSessionStopped);
   eventBusSubscribe(EVENT_THRESHOLDS_CHANGED, onThresholdsChanged);
   Serial.println("[SpeechTimer] Initialized");
 }
@@ -89,8 +95,6 @@ void speechTimerUpdate() {
   }
 
   // Calculate duration and check for level change
-  if (alertsSuppressed) return;
-
   unsigned long duration = now - speechStartTime;
   AlertLevel newLevel = levelFromDuration(duration);
 

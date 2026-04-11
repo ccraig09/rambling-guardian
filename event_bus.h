@@ -25,6 +25,11 @@ enum EventType {
   EVENT_BLE_CONNECTED,         // BLE client connected
   EVENT_BLE_DISCONNECTED,      // BLE client disconnected
   EVENT_THRESHOLDS_CHANGED,    // Alert thresholds updated via BLE
+  EVENT_SESSION_START_REQUESTED,  // Trigger wants to start session (payload: TriggerSource)
+  EVENT_SESSION_STOP_REQUESTED,   // Trigger wants to stop session (payload: TriggerSource)
+  EVENT_SESSION_STARTED,          // Session confirmed active (payload: TriggerSource)
+  EVENT_SESSION_STOPPED,          // Session confirmed ended (payload: TriggerSource)
+  EVENT_STORAGE_LOW,              // SD storage below threshold (payload: free KB)
   EVENT_COUNT                  // Total number of event types
 };
 
@@ -39,9 +44,11 @@ enum AlertLevel {
 
 // Device modes (payload for EVENT_MODE_CHANGED)
 enum DeviceMode {
-  MODE_MONITORING = 0,
-  MODE_PRESENTATION = 1,
-  MODE_DEEP_SLEEP = 2
+  MODE_IDLE = 0,            // Default on boot. Not listening.
+  MODE_ACTIVE_SESSION = 1,  // Triggered monitoring. VAD + speech timer + alerts.
+  MODE_MANUAL_NOTE = 2,     // Double-press capture to SD.
+  MODE_DEEP_SLEEP = 3,      // Long-press. Wake on button.
+  // Reserved: MODE_PRESENTATION_COACH = 4 (future)
 };
 
 // Alert modality (payload for EVENT_MODALITY_CHANGED)
@@ -49,6 +56,15 @@ enum AlertModality {
   MODALITY_LED_ONLY = 0,
   MODALITY_VIBRATION_ONLY = 1,
   MODALITY_BOTH = 2
+};
+
+// Trigger source (payload for EVENT_SESSION_START/STOP_REQUESTED/STARTED/STOPPED)
+enum TriggerSource {
+  TRIGGER_BUTTON = 0,
+  TRIGGER_BLE_COMMAND = 1,
+  TRIGGER_WATCH = 2,      // future
+  TRIGGER_REMOTE = 3,     // future
+  TRIGGER_AUTO_TIMEOUT = 4
 };
 
 // Callback signature: receives event type and an int payload
