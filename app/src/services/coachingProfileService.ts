@@ -15,6 +15,9 @@
  */
 import type { AlertThresholds } from '../types';
 import type { SessionContext } from '../types';
+import { useSessionStore } from '../stores/sessionStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { bleService } from './bleManager';
 
 // ============================================
 // Layer 1 — Pure Profile Logic
@@ -92,4 +95,68 @@ export function getProfileLabel(context: SessionContext): string {
     presentation: 'Relaxed alerts',
   };
   return labels[context];
+}
+
+// ============================================
+// Layer 2 — Thin Orchestration Coordinator
+// ============================================
+
+/** Write-stability guard: suppress context-triggered writes for this many ms. */
+const STABILITY_GUARD_MS = 5000;
+
+/**
+ * Compare two threshold objects for equality.
+ * Returns true if all four values match.
+ */
+function thresholdsEqual(a: AlertThresholds, b: AlertThresholds): boolean {
+  return (
+    a.gentleSec === b.gentleSec &&
+    a.moderateSec === b.moderateSec &&
+    a.urgentSec === b.urgentSec &&
+    a.criticalSec === b.criticalSec
+  );
+}
+
+/**
+ * Single authoritative path for all threshold writes during an active session.
+ *
+ * UI does not own BLE threshold-write logic — it sets store state,
+ * then calls this function. This coordinator owns compute → compare → BLE write.
+ *
+ * @param options.bypassStabilityGuard — true for manual overrides and settings changes
+ */
+export async function applyProfileForCurrentContext(
+  options?: { bypassStabilityGuard?: boolean },
+): Promise<void> {
+  const sessionStore = useSessionStore.getState();
+  const { thresholds: baseThresholds } = useSettingsStore.getState();
+
+  // If no context yet, compute Solo (which equals base — but go through the
+  // pipeline so activeProfile is set consistently)
+  const context = sessionStore.sessionContext ?? 'solo';
+
+  const derived = computeProfileThresholds(context, baseThresholds);
+
+  // Skip if identical to what's already on the device
+  if (sessionStore.activeProfile && thresholdsEqual(derived, sessionStore.activeProfile)) {
+    return;
+  }
+
+  // Stability guard: suppress rapid context-triggered writes
+  if (!options?.bypassStabilityGuard && sessionStore.lastProfileWriteTime) {
+    const elapsed = Date.now() - sessionStore.lastProfileWriteTime;
+    if (elapsed < STABILITY_GUARD_MS) {
+      return;
+    }
+  }
+
+  // Write to device — update store only on success
+  try {
+    await bleService.writeThresholds(derived);
+    sessionStore.setActiveProfile(derived);
+    sessionStore.setLastProfileWriteTime(Date.now());
+  } catch (e) {
+    console.warn('[CoachingProfile] BLE threshold write failed:', e);
+    // Keep prior activeProfile — reconnect will retry
+  }
 }
