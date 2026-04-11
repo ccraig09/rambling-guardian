@@ -98,6 +98,12 @@ Name normalization: trim + collapse internal spaces + preserve casing. Applied o
 `SpeakerPicker` shows library names (recency order) between "Me" and custom input. On confirm, calls both `speakerService.reassignSpeaker()` and `speakerLibraryService.addSpeaker()` (skips "Me").
 `NewSpeakerBanner` (presentational) shows inline pill in `LiveTranscript` when provisional non-"Me" speakers exist. Logic (unnamed count, tap target) lives in `LiveTranscript`. Unresolved speakers stay provisional in `speaker_map` if ignored during session — data ready for future post-session editing.
 
+### Context Classification (Phase D.4)
+`contextClassificationService.ts` classifies sessions as `solo` (1 speaker), `with_others` (2+ speakers, no presentation dominance), or `presentation` (1 speaker has 85%+ of segments with 3+ speakers total). Minimum 15 final segments before classification fires.
+`sessionStore` holds live `sessionContext` + `sessionContextOverride`. Override is sticky — once the user manually selects a context, auto-classification stops for that session.
+`SessionContextPill` in the session screen shows the detected context. Tap to override via Alert.alert picker.
+`session_context` and `session_context_source` columns (migrateToV6) persist the final value on session end.
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 

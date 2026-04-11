@@ -159,7 +159,7 @@ Living ticket tracker. Check off as completed.
 - [x] BUG-D3.2: Keyboard blocks SpeakerPicker input — fixed with KeyboardAvoidingView
 - [x] BUG-D3.3: Random disconnect — root cause: unhandled exceptions in BLE notification callbacks + 2s supervision timeout. Fixed: try-catch on all 7 callbacks, MTU negotiation, supervision timeout 2s→4s, advertising delay 100ms→500ms
 
-- [ ] RG-D.4: Context classification — detect solo / couple / meeting / presentation / background noise from speaker count + patterns, mode-aware coaching (only coach YOUR speech in meetings)
+- [x] RG-D.4: Context classification — solo / with_others / presentation from speaker count + segment distribution, live classification, user override, persisted on session end
 - [ ] RG-D.5: Coaching engine — filler detection, pacing analysis, interruption patterns, overlong runs, reflection prompts, "Catch me up" summaries, "Draft a question" feature
 - [ ] RG-D.6: Post-session summaries + insights — Claude Sonnet summaries, rambling highlights, action items, improvement trends vs previous sessions, context-aware templates per mode
 - [ ] RG-D.7: Exercise recommendation engine — suggest exercises based on detected patterns (filler words → articulation drills, pacing → rhythm exercises), integrate with existing exercise library
