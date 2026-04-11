@@ -152,12 +152,12 @@ Living ticket tracker. Check off as completed.
 
 - [x] RG-D.1: Transcript pipeline foundation — phone mic capture via react-native-live-audio-stream, Deepgram Nova-3 WebSocket streaming STT, live transcript display, session-driven (not VAD-gated in v1), plain text + structured segment persistence
 - [x] RG-D.2: Voice enrollment + speaker attribution foundation ✅ COMPLETE — Deepgram diarization, speaker label resolution, mappings UI, voice profile storage
-- [x] RG-D.3: Speaker library + naming — `known_speakers` table, `speakerLibraryService`, NewSpeakerBanner inline prompt, library-enhanced SpeakerPicker, session-end library sync *(implemented, pending verification)*
-
-**D.3 post-testing bugs (2026-04-10):**
-- [ ] BUG-D3.1: NewSpeakerBanner did not appear during live testing (investigate: may be correct behavior in solo/1-speaker sessions; needs multi-speaker test to confirm)
-- [ ] BUG-D3.2: Keyboard blocks custom name input in SpeakerPicker modal — fix: add KeyboardAvoidingView (1 file)
-- [ ] BUG-D3.3 (known, non-blocking): App randomly disconnects from device during conversation — no obvious root cause, follow-up ticket
+- [x] RG-D.3: Speaker library + naming — `known_speakers` table, `speakerLibraryService`, NewSpeakerBanner inline prompt, library-enhanced SpeakerPicker, session-end library sync
+- [x] D.3 polish: restyled banner, Unknown/Not sure yet option, single-Me invariant
+- [x] D.3 must-fix: disconnect finalization race, honest sync timestamps, transcript timing, final-utterance drain
+- [x] BUG-D3.1: Banner not appearing — confirmed working after multi-speaker test
+- [x] BUG-D3.2: Keyboard blocks SpeakerPicker input — fixed with KeyboardAvoidingView
+- [x] BUG-D3.3: Random disconnect — root cause: unhandled exceptions in BLE notification callbacks + 2s supervision timeout. Fixed: try-catch on all 7 callbacks, MTU negotiation, supervision timeout 2s→4s, advertising delay 100ms→500ms
 
 - [ ] RG-D.4: Context classification — detect solo / couple / meeting / presentation / background noise from speaker count + patterns, mode-aware coaching (only coach YOUR speech in meetings)
 - [ ] RG-D.5: Coaching engine — filler detection, pacing analysis, interruption patterns, overlong runs, reflection prompts, "Catch me up" summaries, "Draft a question" feature
