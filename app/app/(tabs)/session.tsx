@@ -25,11 +25,46 @@ import { useDeviceState, useSessionStats, useConnectionState } from '../../src/h
 import { useDeviceStore } from '../../src/stores/deviceStore';
 import { bleService } from '../../src/services/bleManager';
 import { AlertLevel, AppSessionState, ConnectionState, DeviceMode, AlertModality } from '../../src/types';
+import { useTranscriptStore } from '../../src/stores/transcriptStore';
 import SyncStatusIndicator from '../../src/components/SyncStatusIndicator';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Wait for session + transcript finalization to complete.
+ * Watches for sessionState → NO_SESSION and transcriptStore.status → complete/idle.
+ * Returns early once both conditions are met, or after timeoutMs.
+ */
+function waitForFinalization(timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      unsubDevice();
+      unsubTranscript();
+      resolve();
+    }, timeoutMs);
+
+    function checkDone() {
+      const sessionDone =
+        useDeviceStore.getState().sessionState === AppSessionState.NO_SESSION;
+      const transcriptStatus = useTranscriptStore.getState().status;
+      const transcriptDone =
+        transcriptStatus === 'complete' || transcriptStatus === 'idle';
+      if (sessionDone && transcriptDone) {
+        clearTimeout(timeout);
+        unsubDevice();
+        unsubTranscript();
+        resolve();
+      }
+    }
+
+    const unsubDevice = useDeviceStore.subscribe(checkDone);
+    const unsubTranscript = useTranscriptStore.subscribe(checkDone);
+    // Check immediately in case already finalized
+    checkDone();
+  });
+}
 
 function formatDuration(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
@@ -127,9 +162,12 @@ export default function SessionScreen() {
 
   async function handleDisconnect() {
     try {
-      // If session is active, stop it first
+      // If session is active, stop and wait for full finalization before disconnecting.
+      // stopSession() sends the BLE command; the device confirms asynchronously.
+      // We must wait for session + transcript finalization to complete.
       if (sessionState === AppSessionState.ACTIVE) {
         await bleService.stopSession();
+        await waitForFinalization(8000);
       }
       await bleService.disconnect();
     } catch {
