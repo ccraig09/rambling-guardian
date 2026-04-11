@@ -181,3 +181,20 @@ export async function migrateToV5(db: SQLiteDatabase): Promise<void> {
     );
   `);
 }
+
+export async function migrateToV6(db: SQLiteDatabase): Promise<void> {
+  const migrations = [
+    `ALTER TABLE sessions ADD COLUMN session_context TEXT`,
+    `ALTER TABLE sessions ADD COLUMN session_context_source TEXT`,
+  ];
+
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch (e: any) {
+      if (!e.message?.includes('duplicate column')) {
+        throw e;
+      }
+    }
+  }
+}

@@ -332,6 +332,19 @@ export async function deleteSession(sessionId: string): Promise<void> {
   });
 }
 
+/** Persist session context classification. */
+export async function updateSessionContext(
+  sessionId: string,
+  context: string | null,
+  source: string | null,
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE sessions SET session_context = ?, session_context_source = ? WHERE id = ?',
+    [context, source, sessionId],
+  );
+}
+
 function parseSyncInfo(r: any): SessionSyncInfo {
   return {
     id: r.id,

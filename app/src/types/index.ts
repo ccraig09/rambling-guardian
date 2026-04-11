@@ -224,6 +224,16 @@ export type TranscriptStatus =
   | 'complete';
 
 // ============================================
+// Context Classification Types (D.4)
+// ============================================
+
+/** Detected conversation context for a session. */
+export type SessionContext = 'solo' | 'with_others' | 'presentation';
+
+/** Whether the context was auto-detected or manually overridden. */
+export type SessionContextSource = 'auto' | 'manual';
+
+// ============================================
 // Speaker + Voice Profile Types (D.2)
 // ============================================
 
