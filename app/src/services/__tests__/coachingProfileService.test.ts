@@ -1,3 +1,13 @@
+// Mock transitive deps that fail in Jest (expo-sqlite ESM, react-native-ble-plx)
+jest.mock('../../db/settings', () => ({
+  loadAllSettings: jest.fn().mockResolvedValue(new Map()),
+  saveSetting: jest.fn().mockResolvedValue(undefined),
+  saveSettings: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../bleManager', () => ({
+  bleService: { writeThresholds: jest.fn().mockResolvedValue(undefined) },
+}));
+
 import {
   computeProfileThresholds,
   getProfileLabel,
