@@ -124,14 +124,28 @@ export async function syncFromDevice(): Promise<number> {
       const endedAt = toWallClock(record.bootId, record.endedAtMsSinceBoot);
       const durationMs = record.endedAtMsSinceBoot - record.startedAtMsSinceBoot;
 
+      // When no time anchor exists, startedAt/endedAt are 0.
+      // Use import time as a rough approximation — preserves session duration
+      // but the wall-clock placement is approximate.
+      // TODO: wire bleManager → DEVICE_INFO → recordTimeAnchor() for exact timestamps
+      const hasAnchor = startedAt > 0 && endedAt > 0;
+      if (!hasAnchor) {
+        console.warn(
+          `[SyncTransport] No time anchor for bootId=${record.bootId} — timestamps are approximate`,
+        );
+      }
+      const importTime = Date.now();
+      const effectiveStartedAt = hasAnchor ? startedAt : importTime - durationMs;
+      const effectiveEndedAt = hasAnchor ? endedAt : importTime;
+
       // Mark received before upsert — captures BLE delivery timestamp
       await advanceToReceived(sessionId);
 
       // Idempotent upsert
       await upsertDeviceSession({
         id: sessionId,
-        startedAt: startedAt || Date.now(), // fallback if no anchor
-        endedAt: endedAt || Date.now(),
+        startedAt: effectiveStartedAt,
+        endedAt: effectiveEndedAt,
         durationMs,
         mode: 'solo', // device doesn't track session mode yet
         alertCount: record.alertCount,
