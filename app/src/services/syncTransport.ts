@@ -4,6 +4,24 @@
  * Wires the SYNC_DATA characteristic into the syncEngine scaffold.
  * Handles: manifest request, record transfer, ack, commit.
  * Partial success is normal -- the protocol tolerates it by design.
+ *
+ * ## Timestamp honesty (as of D.3)
+ *
+ * Imported session timestamps are NOT anchored to real wall-clock time.
+ * The anchor pipeline (recordTimeAnchor) exists in code but is not wired:
+ *   - Firmware's DEVICE_INFO (4A98000A) only exposes a version string,
+ *     not bootId or millis(). Requires a firmware change to expose them.
+ *   - bleManager does not call recordTimeAnchor() after connecting.
+ *
+ * Until the anchor pipeline is wired, ALL device-imported sessions use
+ * approximate timestamps: endedAt ≈ import time, startedAt ≈ import time
+ * minus the device-reported duration. The duration itself is accurate
+ * (derived from device boot-relative timing), but the wall-clock
+ * placement is a rough approximation.
+ *
+ * Sessions imported this way have synced_from_device=1 and IDs prefixed
+ * with "dev-". Consumers should not treat their startedAt/endedAt as
+ * precise until the anchor pipeline is complete.
  */
 import { bleService } from './bleManager';
 import { parseSyncManifest, parseSessionRecord, parseUint8, encodeSyncAck, encodeUint8 } from './ble';
@@ -124,14 +142,13 @@ export async function syncFromDevice(): Promise<number> {
       const endedAt = toWallClock(record.bootId, record.endedAtMsSinceBoot);
       const durationMs = record.endedAtMsSinceBoot - record.startedAtMsSinceBoot;
 
-      // When no time anchor exists, startedAt/endedAt are 0.
-      // Use import time as a rough approximation — preserves session duration
-      // but the wall-clock placement is approximate.
-      // TODO: wire bleManager → DEVICE_INFO → recordTimeAnchor() for exact timestamps
+      // Anchor pipeline is NOT wired yet (see module doc). All device sessions
+      // currently hit this fallback. Duration is accurate; wall-clock is not.
       const hasAnchor = startedAt > 0 && endedAt > 0;
       if (!hasAnchor) {
         console.warn(
-          `[SyncTransport] No time anchor for bootId=${record.bootId} — timestamps are approximate`,
+          `[SyncTransport] No time anchor for bootId=${record.bootId} — ` +
+          `wall-clock timestamps are approximate (duration is accurate)`,
         );
       }
       const importTime = Date.now();

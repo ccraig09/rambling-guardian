@@ -162,11 +162,19 @@ export default function SessionScreen() {
 
   async function handleDisconnect() {
     try {
-      // If session is active, stop and wait for full finalization before disconnecting.
-      // stopSession() sends the BLE command; the device confirms asynchronously.
-      // We must wait for session + transcript finalization to complete.
-      if (sessionState === AppSessionState.ACTIVE) {
-        await bleService.stopSession();
+      // Read fresh store state — the React hook value may be stale by the
+      // time the user taps, especially during fast transitions.
+      const current = useDeviceStore.getState().sessionState;
+
+      // Guard every non-idle state: STARTING, ACTIVE, STOPPING.
+      // Disconnecting during any of these would cancel the BLE notification
+      // that triggers session + transcript finalization.
+      if (current !== AppSessionState.NO_SESSION) {
+        // STOPPING is already in progress — just wait for it to finish.
+        // STARTING/ACTIVE need a stop command first.
+        if (current !== AppSessionState.STOPPING) {
+          await bleService.stopSession();
+        }
         await waitForFinalization(8000);
       }
       await bleService.disconnect();
