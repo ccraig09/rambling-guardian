@@ -138,13 +138,15 @@ To prevent BLE write churn if context briefly fluctuates while evidence is settl
 
 ### The Coordinator: `coachingProfileService.ts`
 
-This service has two parts:
+This service intentionally contains two layers in a single file:
 
-**Pure functions (no side effects):**
+**Layer 1 — Pure profile logic (no side effects, no store/BLE access):**
 - `computeProfileThresholds(context, baseThresholds) → AlertThresholds` — multipliers + safety rails
 - `getProfileLabel(context) → string` — returns "Standard alerts" / "Tighter alerts" / "Relaxed alerts"
 
-**Orchestration function (has side effects — reads stores, writes BLE):**
+These are stateless pure functions. They can be unit-tested with no mocking.
+
+**Layer 2 — Thin orchestration coordinator (has side effects — reads stores, writes BLE):**
 - `applyProfileForCurrentContext(options?: { bypassStabilityGuard?: boolean })` — the single authoritative path for all threshold writes during a session:
   1. Read current context from `sessionStore.sessionContext`
   2. Read base thresholds from `settingsStore.thresholds`
@@ -198,7 +200,7 @@ with_others → "Tighter alerts"
 presentation → "Relaxed alerts"
 ```
 
-The label mapping lives in the service (not the component) so it stays co-located with the profile definitions.
+The label mapping lives in the service (not the component) so it stays co-located with the profile definitions. This is intentional — `getProfileLabel` is part of `coachingProfileService` because the labels are a property of the profile system, not a UI concern. The component consumes the label as a string prop without knowing which profile produced it.
 
 ### Settings Screen
 
