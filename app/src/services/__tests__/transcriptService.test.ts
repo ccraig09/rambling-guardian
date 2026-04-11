@@ -11,6 +11,7 @@ jest.mock('../deepgramClient', () => ({
     onOpen: jest.fn((cb: () => void) => { cb(); return () => {}; }),
     onClose: jest.fn(() => () => {}),
     close: jest.fn(),
+    closeAndDrain: jest.fn(() => Promise.resolve()),
     isOpen: jest.fn(() => true),
   })),
 }));
