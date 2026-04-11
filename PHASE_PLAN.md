@@ -160,7 +160,7 @@ Living ticket tracker. Check off as completed.
 - [x] BUG-D3.3: Random disconnect — root cause: unhandled exceptions in BLE notification callbacks + 2s supervision timeout. Fixed: try-catch on all 7 callbacks, MTU negotiation, supervision timeout 2s→4s, advertising delay 100ms→500ms
 
 - [x] RG-D.4: Context classification — solo / with_others / presentation from speaker count + segment distribution, live classification, user override, persisted on session end
-- [ ] RG-D.5: Coaching engine — filler detection, pacing analysis, interruption patterns, overlong runs, reflection prompts, "Catch me up" summaries, "Draft a question" feature
+- [x] RG-D.5: Coaching profiles v1 — context-aware threshold adjustment (solo/with_others/presentation), per-threshold multipliers, safety rails, live profile switching, manual override + settings change wiring, profile label on pill
 - [ ] RG-D.6: Post-session summaries + insights — Claude Sonnet summaries, rambling highlights, action items, improvement trends vs previous sessions, context-aware templates per mode
 - [ ] RG-D.7: Exercise recommendation engine — suggest exercises based on detected patterns (filler words → articulation drills, pacing → rhythm exercises), integrate with existing exercise library
 - [ ] RG-D.8: Backup/export flow — Google Drive sync (app-mediated OAuth), folder structure (year/month/auto-title), separate Audio/ and Transcripts/ folders, background queue
