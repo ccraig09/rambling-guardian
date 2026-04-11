@@ -30,6 +30,7 @@ import { AlertLevel, AppSessionState, ConnectionState, DeviceMode, AlertModality
 import type { SessionContext } from '../../src/types';
 import { useTranscriptStore } from '../../src/stores/transcriptStore';
 import SyncStatusIndicator from '../../src/components/SyncStatusIndicator';
+import { applyProfileForCurrentContext, getProfileLabel } from '../../src/services/coachingProfileService';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -212,6 +213,10 @@ export default function SessionScreen() {
   function applyContextOverride(context: SessionContext) {
     useSessionStore.getState().setSessionContext(context);
     useSessionStore.getState().setSessionContextOverride(true);
+    // D.5: apply coaching profile immediately (bypass stability guard)
+    void applyProfileForCurrentContext({ bypassStabilityGuard: true }).catch(
+      (e: unknown) => console.warn('[Session] Profile apply failed:', e),
+    );
   }
 
   function alertColor(level: AlertLevel): string {

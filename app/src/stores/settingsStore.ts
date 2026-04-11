@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { AlertThresholds } from '../types';
 import { loadAllSettings, saveSetting, saveSettings } from '../db/settings';
 import { useDeviceStore } from './deviceStore';
+import { AppSessionState } from '../types';
 
 interface SettingsStore {
   _hydrated: boolean;
@@ -106,6 +107,16 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
       ['thresholds.urgentSec', String(thresholds.urgentSec)],
       ['thresholds.criticalSec', String(thresholds.criticalSec)],
     ]).catch(console.warn);
+
+    // D.5: recompute active coaching profile if session is running
+    const sessionState = useDeviceStore.getState().sessionState;
+    if (sessionState === AppSessionState.ACTIVE) {
+      // Lazy import to avoid circular dependency at module load time
+      const { applyProfileForCurrentContext } = require('../services/coachingProfileService') as typeof import('../services/coachingProfileService');
+      void applyProfileForCurrentContext({ bypassStabilityGuard: true }).catch(
+        (e: unknown) => console.warn('[Settings] Profile recompute failed:', e),
+      );
+    }
   },
 
   setNotificationsEnabled: (enabled) => {
