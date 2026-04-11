@@ -18,6 +18,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# Firebase
+firebase-debug.log
+
 # Superpowers brainstorm sessions
 .superpowers/
 app/src/spike/

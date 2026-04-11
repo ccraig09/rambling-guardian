@@ -27,25 +27,10 @@ export function LiveTranscript() {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [segments.length, interimText]);
 
-  // Diagnostic: confirm transcript data reaches the component
-  useEffect(() => {
-    if (status === 'streaming') {
-      console.log(`[LiveTranscript] render: status=${status}, segments=${segments.length}, interim="${interimText?.substring(0, 30) ?? ''}"`);
-    }
-  }, [status, segments.length, interimText]);
-
   // Count provisional speakers that aren't "Me" — these need naming
   const unnamedCount = Object.values(mappings).filter(
     (m) => m.confidence === 'provisional' && m.displayName !== 'Me',
   ).length;
-
-  // Diagnostic: track banner state — fires whenever mapping changes
-  useEffect(() => {
-    const summary = Object.entries(mappings)
-      .map(([k, v]) => `${k}→${v.displayName}(${v.confidence})`)
-      .join(', ');
-    console.log(`[LiveTranscript] banner: unnamedCount=${unnamedCount}, mappings=[${summary}]`);
-  }, [unnamedCount, mappings]);
 
   const handleSpeakerTap = useCallback((diarizedLabel: string) => {
     setPickerLabel(diarizedLabel);
