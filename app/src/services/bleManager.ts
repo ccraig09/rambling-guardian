@@ -213,6 +213,9 @@ class BLEService {
     try {
       console.log('[BLE] Calling device.connect...');
       const connected = await device.connect({ timeout: 10_000 });
+      // Request larger MTU — prevents truncated notifications on Android.
+      // iOS auto-negotiates; this is a no-op if already at max.
+      await connected.requestMTU(185).catch(() => {});
       console.log('[BLE] Connected, discovering services...');
       await connected.discoverAllServicesAndCharacteristics();
       this.device = connected;
@@ -296,55 +299,79 @@ class BLEService {
   // -------------------------------------------------------------------
 
   private async subscribeToNotifications(device: Device): Promise<void> {
+    // Every callback is wrapped in try-catch. An uncaught exception inside a
+    // react-native-ble-plx monitor callback can crash the subscription and
+    // trigger an unintentional BLE disconnect — this was the likely cause of
+    // the random mid-session disconnects (BUG-D3.3).
+
     this.subscriptions.push(
-      device.monitorCharacteristicForService(SERVICE_UUID, CHR.ALERT_LEVEL, (_err, chr) => {
-        if (chr?.value) this.updateState({ alertLevel: parseUint8(chr.value) });
+      device.monitorCharacteristicForService(SERVICE_UUID, CHR.ALERT_LEVEL, (err, chr) => {
+        if (err) { console.warn('[BLE] ALERT_LEVEL notify error:', err.message); return; }
+        try { if (chr?.value) this.updateState({ alertLevel: parseUint8(chr.value) }); }
+        catch (e) { console.warn('[BLE] ALERT_LEVEL parse error:', e); }
       }),
     );
 
     this.subscriptions.push(
-      device.monitorCharacteristicForService(SERVICE_UUID, CHR.SPEECH_DUR, (_err, chr) => {
-        if (chr?.value) this.updateState({ speechDuration: parseUint32LE(chr.value) });
+      device.monitorCharacteristicForService(SERVICE_UUID, CHR.SPEECH_DUR, (err, chr) => {
+        if (err) { console.warn('[BLE] SPEECH_DUR notify error:', err.message); return; }
+        try { if (chr?.value) this.updateState({ speechDuration: parseUint32LE(chr.value) }); }
+        catch (e) { console.warn('[BLE] SPEECH_DUR parse error:', e); }
       }),
     );
 
     this.subscriptions.push(
-      device.monitorCharacteristicForService(SERVICE_UUID, CHR.BATTERY, (_err, chr) => {
-        if (chr?.value) {
-          this.lastBatteryReadAt = Date.now();
-          const raw = parseUint8(chr.value);
-          this.updateState({ battery: raw === 255 ? null : raw });
-        }
+      device.monitorCharacteristicForService(SERVICE_UUID, CHR.BATTERY, (err, chr) => {
+        if (err) { console.warn('[BLE] BATTERY notify error:', err.message); return; }
+        try {
+          if (chr?.value) {
+            this.lastBatteryReadAt = Date.now();
+            const raw = parseUint8(chr.value);
+            this.updateState({ battery: raw === 255 ? null : raw });
+          }
+        } catch (e) { console.warn('[BLE] BATTERY parse error:', e); }
       }),
     );
 
     this.subscriptions.push(
-      device.monitorCharacteristicForService(SERVICE_UUID, CHR.SESSION_STATS, (_err, chr) => {
-        if (chr?.value) {
-          const stats = parseSessionStats(chr.value);
-          this.statsListeners.forEach((l) => l(stats));
-        }
+      device.monitorCharacteristicForService(SERVICE_UUID, CHR.SESSION_STATS, (err, chr) => {
+        if (err) { console.warn('[BLE] SESSION_STATS notify error:', err.message); return; }
+        try {
+          if (chr?.value) {
+            const stats = parseSessionStats(chr.value);
+            this.statsListeners.forEach((l) => {
+              try { l(stats); } catch (le) { console.warn('[BLE] Stats listener error:', le); }
+            });
+          }
+        } catch (e) { console.warn('[BLE] SESSION_STATS parse error:', e); }
       }),
     );
 
     this.subscriptions.push(
-      device.monitorCharacteristicForService(SERVICE_UUID, CHR.DEVICE_MODE, (_err, chr) => {
-        if (chr?.value) this.updateState({ mode: parseUint8(chr.value) });
+      device.monitorCharacteristicForService(SERVICE_UUID, CHR.DEVICE_MODE, (err, chr) => {
+        if (err) { console.warn('[BLE] DEVICE_MODE notify error:', err.message); return; }
+        try { if (chr?.value) this.updateState({ mode: parseUint8(chr.value) }); }
+        catch (e) { console.warn('[BLE] DEVICE_MODE parse error:', e); }
       }),
     );
 
     this.subscriptions.push(
-      device.monitorCharacteristicForService(SERVICE_UUID, CHR.MODALITY, (_err, chr) => {
-        if (chr?.value) this.updateState({ modality: parseUint8(chr.value) });
+      device.monitorCharacteristicForService(SERVICE_UUID, CHR.MODALITY, (err, chr) => {
+        if (err) { console.warn('[BLE] MODALITY notify error:', err.message); return; }
+        try { if (chr?.value) this.updateState({ modality: parseUint8(chr.value) }); }
+        catch (e) { console.warn('[BLE] MODALITY parse error:', e); }
       }),
     );
 
     this.subscriptions.push(
-      device.monitorCharacteristicForService(SERVICE_UUID, CHR.SESSION_CTRL, (_err, chr) => {
-        if (chr?.value) {
-          const val = parseUint8(chr.value);
-          this.handleSessionCtrlNotify(val);
-        }
+      device.monitorCharacteristicForService(SERVICE_UUID, CHR.SESSION_CTRL, (err, chr) => {
+        if (err) { console.warn('[BLE] SESSION_CTRL notify error:', err.message); return; }
+        try {
+          if (chr?.value) {
+            const val = parseUint8(chr.value);
+            this.handleSessionCtrlNotify(val);
+          }
+        } catch (e) { console.warn('[BLE] SESSION_CTRL parse error:', e); }
       }),
     );
   }

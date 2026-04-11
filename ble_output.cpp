@@ -72,7 +72,10 @@ class BleServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
     clientConnected = true;
     // Request faster connection interval: 15-30ms (units of 1.25ms)
-    pServer->updateConnParams(connInfo.getConnHandle(), 12, 24, 0, 200);
+    // Supervision timeout: 400 × 10ms = 4s. Was 200 (2s) — too short,
+    // causing random disconnects when iOS throttles BLE or the app is
+    // briefly slow to ACK (BUG-D3.3).
+    pServer->updateConnParams(connInfo.getConnHandle(), 12, 24, 0, 400);
     Serial.printf("[BLE] Client connected (addr: %s)\n",
                   connInfo.getAddress().toString().c_str());
     eventBusPublish(EVENT_BLE_CONNECTED, 0);
@@ -92,9 +95,12 @@ class BleServerCallbacks : public NimBLEServerCallbacks {
     clientConnected = false;
     Serial.printf("[BLE] Client disconnected (reason: 0x%02X)\n", reason);
     eventBusPublish(EVENT_BLE_DISCONNECTED, 0);
-    // Stop-then-start to clear any stale advertising state
+    // Stop-then-start to clear any stale advertising state.
+    // 500ms delay gives the NimBLE stack time to fully tear down the
+    // connection before re-advertising. 100ms was too short and could
+    // race with the app's 3s auto-reconnect timer (BUG-D3.3).
     NimBLEDevice::getAdvertising()->stop();
-    delay(100);  // Allow BLE stack to settle
+    delay(500);
     NimBLEDevice::startAdvertising();
     Serial.println("[BLE] Advertising restarted after disconnect");
   }
