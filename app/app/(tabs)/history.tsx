@@ -20,6 +20,8 @@ import { getSessions, getAlertEvents, getLifetimeStats } from '../../src/db/sess
 import type { Session, AlertEvent } from '../../src/types';
 import { AlertLevel } from '../../src/types';
 import { formatSessionDate, formatDuration, formatTotalTime, formatOffset } from '../../src/utils/timeFormat';
+import { generateSummary, summaryEligibilityReason } from '../../src/services/summaryService';
+import { ANTHROPIC_API_KEY } from '../../src/config/anthropic';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -150,6 +152,33 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [eventsLoaded, setEventsLoaded] = useState(false);
 
+  const [localStatus, setLocalStatus] = useState<
+    'generating' | 'complete' | 'failed' | null
+  >(session.summaryStatus);
+  const [localSummary, setLocalSummary] = useState<string | null>(session.summary);
+  const [generating, setGenerating] = useState(false);
+
+  async function handleGenerateSummary() {
+    if (generating) return; // In-flight protection (local tap guard)
+    setGenerating(true);
+    setLocalStatus('generating');
+    try {
+      await generateSummary(session.id);
+      const updated = await import('../../src/db/sessions').then((m) =>
+        m.getSessionById(session.id),
+      );
+      if (updated) {
+        setLocalSummary(updated.summary);
+        setLocalStatus(updated.summaryStatus);
+      }
+    } catch (e) {
+      console.warn('[History] Summary generation failed:', e);
+      setLocalStatus('failed');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   useEffect(() => {
     if (expanded && !eventsLoaded) {
       getAlertEvents(session.id)
@@ -233,6 +262,56 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
                 </Text>
               </View>
             ))
+          )}
+
+          {/* ── Expanded: AI Summary ── */}
+          {ANTHROPIC_API_KEY && summaryEligibilityReason({
+            durationMs: session.durationMs,
+            transcript: session.transcript ?? null,
+            summary: localSummary,
+            summaryStatus: localStatus,
+          }) === null && (
+            <View style={{ marginTop: theme.spacing.md }}>
+              <Pressable
+                onPress={handleGenerateSummary}
+                disabled={generating || localStatus === 'generating'}
+                style={[
+                  styles.summaryButton,
+                  {
+                    backgroundColor: theme.primary[500],
+                    borderRadius: theme.radius.full,
+                    opacity: generating || localStatus === 'generating' ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <Text style={[theme.type.small, { color: '#fff', fontFamily: theme.fontFamily.semibold }]}>
+                  {localStatus === 'generating' || generating
+                    ? 'Generating summary…'
+                    : 'Generate Summary'}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {localStatus === 'complete' && localSummary && (
+            <View style={{ marginTop: theme.spacing.md }}>
+              <Text style={[theme.type.small, { color: theme.text.tertiary, marginBottom: theme.spacing.xs, fontFamily: theme.fontFamily.semibold }]}>
+                AI Summary
+              </Text>
+              <Text style={[theme.type.small, { color: theme.text.secondary, lineHeight: 20 }]}>
+                {localSummary}
+              </Text>
+            </View>
+          )}
+
+          {localStatus === 'failed' && (
+            <View style={{ marginTop: theme.spacing.md }}>
+              <Pressable onPress={handleGenerateSummary} disabled={generating}>
+                <Text style={[theme.type.small, { color: theme.alert.urgent }]}>
+                  Summary failed. Tap to retry.
+                </Text>
+              </Pressable>
+            </View>
           )}
         </View>
       )}
@@ -437,5 +516,10 @@ const styles = StyleSheet.create({
   emptyCard: {
     padding: 24,
     alignItems: 'center',
+  },
+  summaryButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
 });
