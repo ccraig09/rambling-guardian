@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/theme/theme';
-import { getSessions, getAlertEvents, getLifetimeStats } from '../../src/db/sessions';
+import { getSessions, getAlertEvents, getLifetimeStats, getSessionById } from '../../src/db/sessions';
 import type { Session, AlertEvent } from '../../src/types';
 import { AlertLevel } from '../../src/types';
 import { formatSessionDate, formatDuration, formatTotalTime, formatOffset } from '../../src/utils/timeFormat';
@@ -164,9 +164,7 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
     setLocalStatus('generating');
     try {
       await generateSummary(session.id);
-      const updated = await import('../../src/db/sessions').then((m) =>
-        m.getSessionById(session.id),
-      );
+      const updated = await getSessionById(session.id);
       if (updated) {
         setLocalSummary(updated.summary);
         setLocalStatus(updated.summaryStatus);
