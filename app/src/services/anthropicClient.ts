@@ -83,10 +83,16 @@ export async function createMessage(
   try {
     return await createMessageViaSdk(systemPrompt, userMessage);
   } catch (e: unknown) {
-    // If SDK fails for reasons other than RN incompat (e.g. network),
-    // we still try fetch. Fetch will surface the real error.
     const msg = e instanceof Error ? e.message : String(e);
-    console.warn('[Anthropic] SDK path failed, falling back to fetch:', msg);
+    // Only fall back to fetch on module load/compatibility failures.
+    // API errors (401, 429, network timeouts) should surface immediately.
+    const isLoadError =
+      msg.includes('Cannot find module') ||
+      msg.includes('does not provide an export') ||
+      msg.includes('SyntaxError') ||
+      msg.includes('Unable to resolve module');
+    if (!isLoadError) throw e;
+    console.warn('[Anthropic] SDK load failed, falling back to fetch:', msg);
     return createMessageViaFetch(systemPrompt, userMessage);
   }
 }
