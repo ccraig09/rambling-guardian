@@ -19,7 +19,7 @@
  */
 
 import { getDatabase } from './database';
-import type { Session, SessionMode, AlertEvent, SyncStatus, SessionSyncInfo, RetentionTier, SessionContext, SessionContextSource } from '../types';
+import type { Session, SessionMode, AlertEvent, SyncStatus, SessionSyncInfo, RetentionTier, SessionContext, SessionContextSource, SummaryStatus } from '../types';
 import { AlertLevel } from '../types';
 
 /** Start a new session, returns session id */
@@ -345,6 +345,31 @@ export async function updateSessionContext(
   );
 }
 
+/** Update summary text and mark as complete. */
+export async function updateSummary(
+  sessionId: string,
+  summary: string,
+  generatedAt: number,
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE sessions SET summary = ?, summary_status = ?, summary_generated_at = ? WHERE id = ?',
+    [summary, 'complete', generatedAt, sessionId],
+  );
+}
+
+/** Update summary status without touching the summary text. */
+export async function updateSummaryStatus(
+  sessionId: string,
+  status: 'generating' | 'failed',
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE sessions SET summary_status = ? WHERE id = ?',
+    [status, sessionId],
+  );
+}
+
 function parseSyncInfo(r: any): SessionSyncInfo {
   return {
     id: r.id,
@@ -371,5 +396,8 @@ function parseSession(r: any): Session {
     syncedFromDevice: r.synced_from_device === 1,
     sessionContext: r.session_context as SessionContext | null,
     sessionContextSource: r.session_context_source as SessionContextSource | null,
+    summary: r.summary as string | null,
+    summaryStatus: r.summary_status as SummaryStatus,
+    summaryGeneratedAt: r.summary_generated_at as number | null,
   };
 }

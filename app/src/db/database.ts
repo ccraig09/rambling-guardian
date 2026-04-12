@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { initDatabase, migrateToV2, migrateToV3, migrateToV4, migrateToV5, migrateToV6 } from './schema';
+import { initDatabase, migrateToV2, migrateToV3, migrateToV4, migrateToV5, migrateToV6, migrateToV7 } from './schema';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -12,6 +12,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     await migrateToV4(db);
     await migrateToV5(db);
     await migrateToV6(db);
+    await migrateToV7(db);
   }
   return db;
 }

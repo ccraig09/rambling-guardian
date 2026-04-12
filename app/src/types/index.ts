@@ -97,6 +97,9 @@ export interface Session {
   syncedFromDevice: boolean;
   sessionContext: SessionContext | null;
   sessionContextSource: SessionContextSource | null;
+  summary: string | null;
+  summaryStatus: SummaryStatus;
+  summaryGeneratedAt: number | null;
 }
 
 export interface AlertEvent {
@@ -234,6 +237,9 @@ export type SessionContext = 'solo' | 'with_others' | 'presentation';
 
 /** Whether the context was auto-detected or manually overridden. */
 export type SessionContextSource = 'auto' | 'manual';
+
+/** Summary generation status. Null = never attempted. */
+export type SummaryStatus = 'generating' | 'complete' | 'failed' | null;
 
 // ============================================
 // Speaker + Voice Profile Types (D.2)
