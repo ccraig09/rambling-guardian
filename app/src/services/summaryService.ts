@@ -22,24 +22,7 @@ import {
   buildSummaryUserMessage,
   truncateTranscript,
 } from './summaryPrompts';
-
-/**
- * Extended session shape that includes D.1/D.2 transcript + speaker fields
- * not yet reflected in the core Session interface. getSessionById returns
- * SELECT * so all columns are present at runtime.
- */
-interface SessionWithTranscript {
-  id: string;
-  durationMs: number;
-  alertCount: number;
-  maxAlert: import('../types').AlertLevel;
-  sessionContext: import('../types').SessionContext | null;
-  summary: string | null;
-  summaryStatus: string | null;
-  summaryGeneratedAt: number | null;
-  transcript: string | null;
-  speakerMap: string | null;
-}
+import type { Session } from '../types';
 
 /** Minimum session duration required to generate a summary. */
 export const SHORT_SESSION_MIN_MS = 30_000;
@@ -80,15 +63,15 @@ export function summaryEligibilityReason(session: {
  * summary_status = 'failed' before throwing.
  */
 export async function generateSummary(sessionId: string): Promise<void> {
-  // Cast to extended type — getSessionById uses SELECT * so all DB columns
-  // are present at runtime, including transcript + speaker_map from D.1/D.2.
-  const session = (await getSessionById(sessionId)) as SessionWithTranscript | null;
+  const session: Session | null = await getSessionById(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
   const ineligible = summaryEligibilityReason(session);
   if (ineligible) throw new Error(ineligible);
 
-  // Mark as generating — in-flight protection across taps
+  // Mark as generating — reduces duplicate generation risk.
+  // Note: the UI layer must also disable the trigger while status is 'generating';
+  // this service-layer guard has a TOCTOU window between read and write.
   await updateSummaryStatus(sessionId, 'generating');
 
   try {
@@ -128,8 +111,8 @@ export async function generateSummary(sessionId: string): Promise<void> {
 
     await updateSummary(sessionId, summaryText, Date.now());
   } catch (e) {
-    await updateSummaryStatus(sessionId, 'failed').catch(() => {
-      /* best effort — original error is the real failure */
+    await updateSummaryStatus(sessionId, 'failed').catch((statusErr) => {
+      console.warn('[summaryService] Could not mark session failed after error:', statusErr);
     });
     throw e;
   }

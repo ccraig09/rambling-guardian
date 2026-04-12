@@ -97,6 +97,9 @@ export interface Session {
   syncedFromDevice: boolean;
   sessionContext: SessionContext | null;
   sessionContextSource: SessionContextSource | null;
+  transcript: string | null;
+  transcriptTimestamps: string | null;
+  speakerMap: string | null;
   summary: string | null;
   summaryStatus: SummaryStatus;
   summaryGeneratedAt: number | null;
