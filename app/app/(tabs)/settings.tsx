@@ -8,7 +8,7 @@
  *
  * Offline-safe: all writes go to Zustand first; BLE writes only when connected.
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-auth-session';
 import { useTheme } from '../../src/theme/theme';
 import { useDeviceState } from '../../src/hooks/useDeviceState';
 import { useDeviceStore } from '../../src/stores/deviceStore';
@@ -188,15 +187,9 @@ export default function SettingsScreen() {
   const [driveBackupMessage, setDriveBackupMessage] = useState<string | null>(null);
   const [driveLoading, setDriveLoading] = useState(false);
 
-  const redirectUri = useMemo(
-    () => makeRedirectUri({ scheme: 'com.googleusercontent.apps.618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99' }),
-    [],
-  );
-
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: '618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com',
     scopes: ['https://www.googleapis.com/auth/drive.file'],
-    redirectUri,
   });
 
   // Check connection status on mount
@@ -211,7 +204,7 @@ export default function SettingsScreen() {
       const codeVerifier = request?.codeVerifier ?? '';
       setDriveLoading(true);
       googleAuthService
-        .connect(code, codeVerifier, redirectUri)
+        .connect(code, codeVerifier, request?.redirectUri ?? '')
         .then(() => {
           setDriveConnected(true);
           setDriveBackupMessage(null);
