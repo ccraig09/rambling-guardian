@@ -17,6 +17,8 @@ const CONTEXT_SLUG: Record<string, string> = {
   presentation: 'presentation',
 };
 
+// Local-time intentional throughout: filename and folder should match the user's
+// calendar perception, consistent with how formatHeaderDate renders the session header.
 export function buildDriveFileName(session: Session): string {
   const d = new Date(session.startedAt);
   const yyyy = d.getFullYear();
