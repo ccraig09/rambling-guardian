@@ -62,16 +62,32 @@ interface Turn {
   text: string;
 }
 
-function buildTurns(segments: TranscriptSegment[], mappings: SpeakerMapping[]): Turn[] {
+// Values above this threshold are treated as absolute Unix timestamps (ms), not
+// stream-relative offsets. 4 hours covers any realistic session duration.
+const MAX_SESSION_OFFSET_MS = 4 * 60 * 60 * 1000;
+
+function normalizeOffset(segStart: number, sessionStartMs: number): number {
+  if (segStart > MAX_SESSION_OFFSET_MS) {
+    return Math.max(0, segStart - sessionStartMs);
+  }
+  return segStart;
+}
+
+function buildTurns(
+  segments: TranscriptSegment[],
+  mappings: SpeakerMapping[],
+  sessionStartMs: number,
+): Turn[] {
   const turns: Turn[] = [];
   for (const seg of segments) {
     if (!seg.isFinal) continue;
     const name = resolveName(seg.speaker, mappings);
     const last = turns[turns.length - 1];
+    const offsetMs = normalizeOffset(seg.start, sessionStartMs);
     if (last && last.displayName === name) {
       last.text += ' ' + seg.text;
     } else {
-      turns.push({ displayName: name, startMs: seg.start, text: seg.text });
+      turns.push({ displayName: name, startMs: offsetMs, text: seg.text });
     }
   }
   return turns;
@@ -200,7 +216,7 @@ export default function SessionDetailScreen() {
 
   const segments = parseSegments(session.transcriptTimestamps);
   const speakerMappings = parseSpeakerMap(session.speakerMap);
-  const turns = segments ? buildTurns(segments, speakerMappings) : null;
+  const turns = segments ? buildTurns(segments, speakerMappings, session.startedAt) : null;
 
   const contextLabel = session.sessionContext
     ? session.sessionContext.replaceAll('_', ' ')

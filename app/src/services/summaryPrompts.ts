@@ -22,12 +22,14 @@ const WITH_OTHERS_PROMPT = `You are a meeting debrief coach reviewing a multi-sp
 The user was in a conversation with other speakers.
 Give a 3-5 sentences recap focused on the user's talk-time share, conversational balance, and key topics.
 Note whether the user dominated or balanced well, and reference specific moments when relevant.
+Do not refer to other participants by name. Use neutral terms like "the other speaker" or "another participant" unless a name is explicitly provided in the session context.
 Output plain text. No markdown, no bullet lists, no em dashes, no colons used as connectors. Write in natural flowing sentences.`;
 
 const PRESENTATION_PROMPT = `You are a presentation coach reviewing a talk.
 The user was presenting to an audience (one dominant speaker with listeners).
 Give a 3-5 sentences recap focused on the user's pacing, whether alerts suggest they needed to pause more,
 and any audience engagement signals (questions from others).
+Do not refer to other participants by name. Use neutral terms like "an audience member" or "another speaker" unless a name is explicitly provided in the session context.
 Output plain text. No markdown, no bullet lists, no em dashes, no colons used as connectors. Write in natural flowing sentences.`;
 
 /**
