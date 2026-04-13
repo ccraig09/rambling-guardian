@@ -185,7 +185,10 @@ export default function SettingsScreen() {
   // ── Google Drive state ──────────────────────────────────────
   const [driveConnected, setDriveConnected] = useState(false);
   const [driveBackupMessage, setDriveBackupMessage] = useState<string | null>(null);
-  const [driveLoading, setDriveLoading] = useState(false);
+  const [driveLoading, setDriveLoading] = useState(false); // connect/disconnect only
+  const [backupInProgress, setBackupInProgress] = useState(false);
+  const [backupProgress, setBackupProgress] = useState<{ done: number; total: number } | null>(null);
+  const [backupHasFailed, setBackupHasFailed] = useState(false);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: '618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com',
@@ -282,19 +285,30 @@ export default function SettingsScreen() {
   }
 
   async function handleBackupAll() {
-    setDriveLoading(true);
+    setBackupInProgress(true);
+    setBackupProgress(null);
+    setBackupHasFailed(false);
     setDriveBackupMessage(null);
     try {
-      const result = await driveExportService.exportAllSessions();
-      setDriveBackupMessage(
-        result.failed > 0
-          ? `${result.succeeded} backed up · ${result.failed} failed`
-          : `${result.succeeded} session${result.succeeded !== 1 ? 's' : ''} backed up`,
-      );
+      const result = await driveExportService.exportAllSessions((done, total) => {
+        setBackupProgress({ done, total });
+      });
+      if (result.succeeded === 0 && result.failed === 0) {
+        setDriveBackupMessage('All sessions already backed up');
+      } else if (result.failed > 0) {
+        setBackupHasFailed(true);
+        setDriveBackupMessage(`${result.succeeded} backed up · ${result.failed} failed`);
+      } else {
+        setDriveBackupMessage(
+          `${result.succeeded} session${result.succeeded !== 1 ? 's' : ''} backed up`,
+        );
+      }
     } catch {
-      setDriveBackupMessage('Backup failed. Check your connection.');
+      setBackupHasFailed(true);
+      setDriveBackupMessage('Backup failed. Check your connection and try again.');
     } finally {
-      setDriveLoading(false);
+      setBackupInProgress(false);
+      setBackupProgress(null);
     }
   }
 
@@ -692,13 +706,24 @@ export default function SettingsScreen() {
 
               <Pressable
                 onPress={handleBackupAll}
-                disabled={driveLoading}
-                style={[styles.row, { opacity: driveLoading ? 0.5 : 1 }]}
+                disabled={backupInProgress}
+                style={[styles.row, { opacity: backupInProgress ? 0.5 : 1 }]}
               >
-                <Text style={[theme.type.body, { color: theme.primary[400] }]}>
-                  {driveLoading ? 'Backing up…' : 'Back Up All Sessions'}
+                <Text
+                  style={[
+                    theme.type.body,
+                    { color: backupHasFailed ? theme.alert.urgent : theme.primary[400] },
+                  ]}
+                >
+                  {backupInProgress
+                    ? backupProgress
+                      ? `${backupProgress.done} of ${backupProgress.total} backed up…`
+                      : 'Preparing…'
+                    : backupHasFailed
+                      ? 'Retry Failed Sessions'
+                      : 'Back Up All Sessions'}
                 </Text>
-                {driveLoading && <ActivityIndicator size="small" color={theme.primary[400]} />}
+                {backupInProgress && <ActivityIndicator size="small" color={theme.primary[400]} />}
               </Pressable>
 
               <Pressable onPress={handleDriveDisconnect} style={styles.row}>

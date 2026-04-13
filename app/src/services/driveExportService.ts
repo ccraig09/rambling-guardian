@@ -123,12 +123,16 @@ class DriveExportService {
     }
   }
 
-  async exportAllSessions(): Promise<{ succeeded: number; failed: number }> {
+  async exportAllSessions(
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<{ succeeded: number; failed: number }> {
     const sessions = await getSessions(200); // 200-session cap for v1; revisit if bulk-export is added
     const pending = sessions.filter((s) => s.backupStatus !== 'complete');
+    const total = pending.length;
 
     let succeeded = 0;
     let failed = 0;
+    let done = 0;
 
     for (const session of pending) {
       try {
@@ -137,6 +141,8 @@ class DriveExportService {
       } catch {
         failed++;
       }
+      done++;
+      onProgress?.(done, total);
     }
 
     return { succeeded, failed };
