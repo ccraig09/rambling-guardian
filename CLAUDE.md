@@ -110,6 +110,14 @@ Name normalization: trim + collapse internal spaces + preserve casing. Applied o
 Session start → Solo baseline. Context change → derived profile. Manual override → immediate (bypass stability). Settings change during session → immediate recompute. Session end → restore Solo + clear profile (only on successful write). BLE reconnect → re-assert activeProfile or Solo.
 `SessionContextPill` shows profile label: "Solo · Standard alerts", "With Others · Tighter alerts", "Presenting · Relaxed alerts".
 
+### Post-Session Summaries (Phase D.6 v1)
+`summaryService.ts` generates one AI summary per session on demand. `anthropicClient.ts` is a provider adapter that tries `@anthropic-ai/sdk` first and falls back to raw fetch on load failure. `summaryPrompts.ts` holds three context-aware system prompts (solo / with_others / presentation) plus the user-message assembler and deterministic truncation.
+Eligibility rules: summary generates only when transcript exists, duration >= 30s, no summary already complete, and not currently generating. In-flight protection: `summary_status = 'generating'` blocks duplicate taps at both the service and UI level.
+Model: Claude Haiku 4.5 via env var `EXPO_PUBLIC_ANTHROPIC_API_KEY`. Client-side for prototyping — flag before production. Upgrade to Sonnet is a single-constant change in `config/anthropic.ts`.
+Truncation strategy: if transcript exceeds ~32K chars (~8K tokens), keep only the last 32K chars with a truncation marker. Metadata and alert events are always preserved in full.
+`session_context_source` is preserved from D.4; summary prompts are selected by `session_context`.
+`migrateToV7` adds `summary`, `summary_status`, `summary_generated_at` columns. Summary displays in the expanded session card in history with four states: button / generating / complete / failed (tap to retry).
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 

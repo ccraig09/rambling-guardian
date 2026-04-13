@@ -16,10 +16,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/theme/theme';
-import { getSessions, getAlertEvents, getLifetimeStats } from '../../src/db/sessions';
+import { getSessions, getAlertEvents, getLifetimeStats, getSessionById, updateSummaryStatus } from '../../src/db/sessions';
 import type { Session, AlertEvent } from '../../src/types';
 import { AlertLevel } from '../../src/types';
 import { formatSessionDate, formatDuration, formatTotalTime, formatOffset } from '../../src/utils/timeFormat';
+import { generateSummary, summaryEligibilityReason } from '../../src/services/summaryService';
+import { ANTHROPIC_API_KEY } from '../../src/config/anthropic';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -150,6 +152,43 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [eventsLoaded, setEventsLoaded] = useState(false);
 
+  const [localStatus, setLocalStatus] = useState<
+    'generating' | 'complete' | 'failed' | null
+  >(session.summaryStatus);
+  const [localSummary, setLocalSummary] = useState<string | null>(session.summary);
+  const [generating, setGenerating] = useState(false);
+
+  async function handleGenerateSummary() {
+    if (generating) return; // In-flight protection (local tap guard)
+    setGenerating(true);
+    setLocalStatus('generating');
+    try {
+      await generateSummary(session.id);
+      const updated = await getSessionById(session.id);
+      if (updated) {
+        setLocalSummary(updated.summary);
+        setLocalStatus(updated.summaryStatus);
+      }
+    } catch (e) {
+      console.warn('[History] Summary generation failed:', e);
+      setLocalStatus('failed');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // On mount: if persisted status is 'generating', no real request is in flight — it's stale.
+  // Reset to null so the user gets the retry button instead of a permanent hung state.
+  useEffect(() => {
+    if (session.summaryStatus === 'generating') {
+      setLocalStatus(null);
+      updateSummaryStatus(session.id, null).catch((e) => {
+        console.warn('[History] Failed to clear stale generating status:', e);
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — run once on mount only
+
   useEffect(() => {
     if (expanded && !eventsLoaded) {
       getAlertEvents(session.id)
@@ -233,6 +272,69 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
                 </Text>
               </View>
             ))
+          )}
+
+          {/* ── Expanded: AI Summary ── */}
+          {ANTHROPIC_API_KEY && (
+            <>
+              {/* Generating — always visible while in-flight, not gated by eligibility */}
+              {(generating || localStatus === 'generating') && (
+                <View style={{ marginTop: theme.spacing.md }}>
+                  <View
+                    style={[
+                      styles.summaryButton,
+                      { backgroundColor: theme.colors.elevated, borderRadius: theme.radius.full, opacity: 0.7 },
+                    ]}
+                  >
+                    <Text style={[theme.type.small, { color: theme.text.secondary, fontFamily: theme.fontFamily.semibold }]}>
+                      Generating summary…
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Button — show only when eligible and idle */}
+              {!generating && localStatus !== 'generating' && summaryEligibilityReason({
+                durationMs: session.durationMs,
+                transcript: session.transcript ?? null,
+                summary: localSummary,
+                summaryStatus: localStatus,
+              }) === null && (
+                <View style={{ marginTop: theme.spacing.md }}>
+                  <Pressable
+                    onPress={handleGenerateSummary}
+                    style={[styles.summaryButton, { backgroundColor: theme.primary[500], borderRadius: theme.radius.full }]}
+                  >
+                    <Text style={[theme.type.small, { color: '#fff', fontFamily: theme.fontFamily.semibold }]}>
+                      Generate Summary
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {/* Complete */}
+              {localStatus === 'complete' && localSummary && (
+                <View style={{ marginTop: theme.spacing.md }}>
+                  <Text style={[theme.type.small, { color: theme.text.tertiary, marginBottom: theme.spacing.xs, fontFamily: theme.fontFamily.semibold }]}>
+                    AI Summary
+                  </Text>
+                  <Text style={[theme.type.small, { color: theme.text.secondary, lineHeight: 20 }]}>
+                    {localSummary}
+                  </Text>
+                </View>
+              )}
+
+              {/* Failed */}
+              {localStatus === 'failed' && !generating && (
+                <View style={{ marginTop: theme.spacing.md }}>
+                  <Pressable onPress={handleGenerateSummary}>
+                    <Text style={[theme.type.small, { color: theme.alert.urgent }]}>
+                      Summary failed. Tap to retry.
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            </>
           )}
         </View>
       )}
@@ -437,5 +539,10 @@ const styles = StyleSheet.create({
   emptyCard: {
     padding: 24,
     alignItems: 'center',
+  },
+  summaryButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
 });

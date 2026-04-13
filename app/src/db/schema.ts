@@ -198,3 +198,21 @@ export async function migrateToV6(db: SQLiteDatabase): Promise<void> {
     }
   }
 }
+
+export async function migrateToV7(db: SQLiteDatabase): Promise<void> {
+  const migrations = [
+    `ALTER TABLE sessions ADD COLUMN summary TEXT`,
+    `ALTER TABLE sessions ADD COLUMN summary_status TEXT`,
+    `ALTER TABLE sessions ADD COLUMN summary_generated_at INTEGER`,
+  ];
+
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch (e: any) {
+      if (!e.message?.includes('duplicate column')) {
+        throw e;
+      }
+    }
+  }
+}

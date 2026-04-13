@@ -161,7 +161,7 @@ Living ticket tracker. Check off as completed.
 
 - [x] RG-D.4: Context classification — solo / with_others / presentation from speaker count + segment distribution, live classification, user override, persisted on session end
 - [x] RG-D.5: Coaching profiles v1 — context-aware threshold adjustment (solo/with_others/presentation), per-threshold multipliers, safety rails, live profile switching, manual override + settings change wiring, profile label on pill
-- [ ] RG-D.6: Post-session summaries + insights — Claude Sonnet summaries, rambling highlights, action items, improvement trends vs previous sessions, context-aware templates per mode
+- [x] RG-D.6 v1: Post-session summaries — on-demand AI summary per session, context-aware prompts (solo/with_others/presentation), Claude Haiku via provider adapter, displayed in expanded history card, migrateToV7
 - [ ] RG-D.7: Exercise recommendation engine — suggest exercises based on detected patterns (filler words → articulation drills, pacing → rhythm exercises), integrate with existing exercise library
 - [ ] RG-D.8: Backup/export flow — Google Drive sync (app-mediated OAuth), folder structure (year/month/auto-title), separate Audio/ and Transcripts/ folders, background queue
 - [ ] Run revise-claude-md and commit
