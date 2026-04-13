@@ -19,6 +19,7 @@ import { useTheme } from '../../src/theme/theme';
 import {
   getSessionById,
   getAlertEvents,
+  updateSummaryStatus,
 } from '../../src/db/sessions';
 import type { Session, AlertEvent, TranscriptSegment, SpeakerMapping } from '../../src/types';
 import {
@@ -26,6 +27,8 @@ import {
   formatDuration,
   formatOffset,
 } from '../../src/utils/timeFormat';
+import { generateSummary, summaryEligibilityReason } from '../../src/services/summaryService';
+import { ANTHROPIC_API_KEY } from '../../src/config/anthropic';
 
 // ---------------------------------------------------------------------------
 // Pure helpers — transcript parsing
@@ -86,6 +89,11 @@ export default function SessionDetailScreen() {
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Summary state
+  const [localSummary, setLocalSummary] = useState<string | null>(null);
+  const [localStatus, setLocalStatus] = useState<Session['summaryStatus']>(null);
+  const [generating, setGenerating] = useState(false);
+
   useEffect(() => {
     if (!id) {
       setSession(null);
@@ -100,6 +108,10 @@ export default function SessionDetailScreen() {
       .then(([sess, evts]) => {
         setSession(sess ?? null);
         setEvents(evts);
+        if (sess) {
+          setLocalSummary(sess.summary ?? null);
+          setLocalStatus(sess.summaryStatus ?? null);
+        }
       })
       .catch((e) => {
         console.warn('[SessionDetail] Failed to load session:', e);
@@ -107,6 +119,36 @@ export default function SessionDetailScreen() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Stale generating status recovery — same pattern as history card
+  useEffect(() => {
+    if (session && session.summaryStatus === 'generating') {
+      setLocalStatus(null);
+      updateSummaryStatus(session.id, null).catch((e) =>
+        console.warn('[SessionDetail] Failed to clear stale generating status:', e),
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — run once on mount only
+
+  async function handleGenerateSummary() {
+    if (generating || !session) return;
+    setGenerating(true);
+    setLocalStatus('generating');
+    try {
+      await generateSummary(session.id);
+      const updated = await getSessionById(session.id);
+      if (updated) {
+        setLocalSummary(updated.summary);
+        setLocalStatus(updated.summaryStatus);
+      }
+    } catch (e) {
+      console.warn('[SessionDetail] Summary generation failed:', e);
+      setLocalStatus('failed');
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Loading / error states
@@ -253,6 +295,80 @@ export default function SessionDetailScreen() {
           )}
         </View>
 
+        {/* ── AI Summary Section ── */}
+        {ANTHROPIC_API_KEY ? (
+          <View style={[styles.section, styles.sectionBorder, { borderTopColor: theme.colors.elevated }]}>
+            <Text style={[styles.sectionLabel, { color: theme.text.tertiary }]}>
+              AI SUMMARY
+            </Text>
+
+            {/* Generating — always shown while in-flight */}
+            {(generating || localStatus === 'generating') && (
+              <View
+                style={[
+                  styles.summaryButton,
+                  {
+                    backgroundColor: theme.colors.elevated,
+                    borderRadius: theme.radius.full,
+                    opacity: 0.7,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    theme.type.small,
+                    { color: theme.text.secondary, fontFamily: theme.fontFamily.semibold },
+                  ]}
+                >
+                  Generating summary…
+                </Text>
+              </View>
+            )}
+
+            {/* Button — show only when eligible and idle */}
+            {!generating && localStatus !== 'generating' &&
+              summaryEligibilityReason({
+                durationMs: session.durationMs,
+                transcript: session.transcript ?? null,
+                summary: localSummary,
+                summaryStatus: localStatus,
+              }) === null && (
+              <Pressable
+                onPress={handleGenerateSummary}
+                style={[
+                  styles.summaryButton,
+                  { backgroundColor: theme.primary[500], borderRadius: theme.radius.full },
+                ]}
+              >
+                <Text
+                  style={[
+                    theme.type.small,
+                    { color: '#fff', fontFamily: theme.fontFamily.semibold },
+                  ]}
+                >
+                  Generate Summary
+                </Text>
+              </Pressable>
+            )}
+
+            {/* Complete */}
+            {localStatus === 'complete' && localSummary && (
+              <Text style={[theme.type.body, { color: theme.text.secondary, lineHeight: 22 }]}>
+                {localSummary}
+              </Text>
+            )}
+
+            {/* Failed */}
+            {localStatus === 'failed' && !generating && (
+              <Pressable onPress={handleGenerateSummary}>
+                <Text style={[theme.type.small, { color: theme.alert.urgent }]}>
+                  Summary failed. Tap to retry.
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        ) : null}
+
         {/* Bottom padding */}
         <View style={{ height: 48 }} />
       </ScrollView>
@@ -294,11 +410,20 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
+  sectionBorder: {
+    paddingTop: 24,
+    borderTopWidth: 1,
+  },
   sectionLabel: {
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 12,
+  },
+  summaryButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   turnRow: {
     borderLeftWidth: 2,
