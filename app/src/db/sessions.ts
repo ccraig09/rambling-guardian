@@ -19,7 +19,7 @@
  */
 
 import { getDatabase } from './database';
-import type { Session, SessionMode, AlertEvent, SyncStatus, SessionSyncInfo, RetentionTier, SessionContext, SessionContextSource, SummaryStatus } from '../types';
+import type { Session, SessionMode, AlertEvent, SyncStatus, SessionSyncInfo, RetentionTier, SessionContext, SessionContextSource, SummaryStatus, BackupStatus } from '../types';
 import { AlertLevel } from '../types';
 
 /** Start a new session, returns session id */
@@ -370,6 +370,26 @@ export async function updateSummaryStatus(
   );
 }
 
+/** Update Drive backup status for a session */
+export async function updateBackupStatus(
+  id: string,
+  status: BackupStatus,
+  driveFileId?: string,
+): Promise<void> {
+  const db = await getDatabase();
+  if (driveFileId) {
+    await db.runAsync(
+      'UPDATE sessions SET backup_status = ?, drive_file_id = ? WHERE id = ?',
+      [status, driveFileId, id],
+    );
+  } else {
+    await db.runAsync(
+      'UPDATE sessions SET backup_status = ? WHERE id = ?',
+      [status, id],
+    );
+  }
+}
+
 function parseSyncInfo(r: any): SessionSyncInfo {
   return {
     id: r.id,
@@ -402,5 +422,7 @@ function parseSession(r: any): Session {
     summary: r.summary as string | null,
     summaryStatus: r.summary_status as SummaryStatus,
     summaryGeneratedAt: r.summary_generated_at as number | null,
+    driveFileId: r.drive_file_id ?? null,
+    backupStatus: (r.backup_status as BackupStatus) ?? null,
   };
 }

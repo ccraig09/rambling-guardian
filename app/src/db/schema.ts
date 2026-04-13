@@ -216,3 +216,20 @@ export async function migrateToV7(db: SQLiteDatabase): Promise<void> {
     }
   }
 }
+
+export async function migrateToV8(db: SQLiteDatabase): Promise<void> {
+  const migrations = [
+    `ALTER TABLE sessions ADD COLUMN drive_file_id TEXT`,
+    `ALTER TABLE sessions ADD COLUMN backup_status TEXT`,
+  ];
+
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch (e: any) {
+      if (!e.message?.includes('duplicate column')) {
+        throw e;
+      }
+    }
+  }
+}
