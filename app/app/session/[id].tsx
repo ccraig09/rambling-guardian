@@ -129,8 +129,16 @@ export default function SessionDetailScreen() {
         setSession(sess ?? null);
         setEvents(evts);
         if (sess) {
+          // Stale generating recovery: if status is 'generating' but no real request
+          // is running (fresh mount), reset to null so the Generate button reappears.
+          const effectiveStatus = sess.summaryStatus === 'generating' ? null : sess.summaryStatus;
           setLocalSummary(sess.summary ?? null);
-          setLocalStatus(sess.summaryStatus ?? null);
+          setLocalStatus(effectiveStatus);
+          if (sess.summaryStatus === 'generating') {
+            updateSummaryStatus(sess.id, null).catch((e) =>
+              console.warn('[SessionDetail] Failed to clear stale generating status:', e),
+            );
+          }
         }
       })
       .catch((e) => {
@@ -139,17 +147,6 @@ export default function SessionDetailScreen() {
       })
       .finally(() => setLoading(false));
   }, [id]);
-
-  // Stale generating status recovery — same pattern as history card
-  useEffect(() => {
-    if (session && session.summaryStatus === 'generating') {
-      setLocalStatus(null);
-      updateSummaryStatus(session.id, null).catch((e) =>
-        console.warn('[SessionDetail] Failed to clear stale generating status:', e),
-      );
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — run once on mount only
 
   async function handleGenerateSummary() {
     if (generating || !session) return;
