@@ -22,6 +22,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri } from 'expo-auth-session';
 import { useTheme } from '../../src/theme/theme';
 import { useDeviceState } from '../../src/hooks/useDeviceState';
 import { useDeviceStore } from '../../src/stores/deviceStore';
@@ -30,6 +33,10 @@ import { bleService } from '../../src/services/bleManager';
 import { AlertModality } from '../../src/types';
 import type { AlertThresholds } from '../../src/types';
 import { getNotificationPermissionStatus } from '../../src/services/notifications';
+import { googleAuthService } from '../../src/services/googleAuthService';
+import { driveExportService } from '../../src/services/driveExportService';
+
+WebBrowser.maybeCompleteAuthSession();
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -176,6 +183,46 @@ export default function SettingsScreen() {
   const [isApplyingThresholds, setIsApplyingThresholds] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
 
+  // ── Google Drive state ──────────────────────────────────────
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [driveBackupMessage, setDriveBackupMessage] = useState<string | null>(null);
+  const [driveLoading, setDriveLoading] = useState(false);
+
+  const redirectUri = makeRedirectUri({
+    scheme: 'com.googleusercontent.apps.618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99',
+  });
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    iosClientId: '618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com',
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    redirectUri,
+  });
+
+  // Check connection status on mount
+  useEffect(() => {
+    googleAuthService.isConnected().then(setDriveConnected).catch(console.warn);
+  }, []);
+
+  // Handle OAuth response
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { code } = response.params;
+      const codeVerifier = request?.codeVerifier ?? '';
+      setDriveLoading(true);
+      googleAuthService
+        .connect(code, codeVerifier, redirectUri)
+        .then(() => {
+          setDriveConnected(true);
+          setDriveBackupMessage(null);
+        })
+        .catch((e: unknown) => {
+          console.warn('[Settings] Drive connect failed:', e);
+          setDriveBackupMessage('Connection failed. Please try again.');
+        })
+        .finally(() => setDriveLoading(false));
+    }
+  }, [response]);
+
   // Check OS notification permission on mount and when app returns to foreground
   useEffect(() => {
     const checkPermission = () => {
@@ -226,6 +273,29 @@ export default function SettingsScreen() {
     }
     setApplySuccess(true);
     setTimeout(() => setApplySuccess(false), 2500);
+  }
+
+  async function handleDriveDisconnect() {
+    await googleAuthService.disconnect();
+    setDriveConnected(false);
+    setDriveBackupMessage(null);
+  }
+
+  async function handleBackupAll() {
+    setDriveLoading(true);
+    setDriveBackupMessage(null);
+    try {
+      const result = await driveExportService.exportAllSessions();
+      setDriveBackupMessage(
+        result.failed > 0
+          ? `${result.succeeded} backed up · ${result.failed} failed`
+          : `${result.succeeded} session${result.succeeded !== 1 ? 's' : ''} backed up`,
+      );
+    } catch {
+      setDriveBackupMessage('Backup failed. Check your connection.');
+    } finally {
+      setDriveLoading(false);
+    }
   }
 
   // ------------------------------------------------------------------
@@ -591,6 +661,65 @@ export default function SettingsScreen() {
             </View>
           </View>
         </SettingGroup>
+
+        {/* ================================================================
+         * CLOUD BACKUP section
+         * ================================================================ */}
+        <SectionHeader label="Cloud Backup" theme={theme} />
+
+        <SettingGroup theme={theme}>
+          {!driveConnected ? (
+            <Pressable
+              onPress={() => promptAsync()}
+              disabled={!request || driveLoading}
+              style={[styles.row, { opacity: !request || driveLoading ? 0.5 : 1 }]}
+            >
+              <Text style={[theme.type.body, { color: theme.primary[400] }]}>
+                Connect Google Drive
+              </Text>
+              {driveLoading && <ActivityIndicator size="small" color={theme.primary[400]} />}
+            </Pressable>
+          ) : (
+            <>
+              <View style={styles.row}>
+                <Text style={[theme.type.body, { color: theme.text.primary }]}>
+                  Google Drive
+                </Text>
+                <Text style={[theme.type.small, { color: theme.semantic.success }]}>
+                  Connected ✓
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={handleBackupAll}
+                disabled={driveLoading}
+                style={[styles.row, { opacity: driveLoading ? 0.5 : 1 }]}
+              >
+                <Text style={[theme.type.body, { color: theme.primary[400] }]}>
+                  {driveLoading ? 'Backing up…' : 'Back Up All Sessions'}
+                </Text>
+                {driveLoading && <ActivityIndicator size="small" color={theme.primary[400]} />}
+              </Pressable>
+
+              <Pressable onPress={handleDriveDisconnect} style={styles.row}>
+                <Text style={[theme.type.body, { color: theme.alert.urgent }]}>
+                  Disconnect Google Drive
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </SettingGroup>
+
+        {driveBackupMessage ? (
+          <Text
+            style={[
+              theme.type.small,
+              { color: theme.text.secondary, marginTop: 4, marginHorizontal: 20 },
+            ]}
+          >
+            {driveBackupMessage}
+          </Text>
+        ) : null}
 
         {/* Bottom padding */}
         <View style={{ height: 40 }} />
