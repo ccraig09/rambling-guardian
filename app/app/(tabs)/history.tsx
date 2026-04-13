@@ -151,10 +151,6 @@ interface SessionCardProps {
 function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
   const router = useRouter();
 
-  function handleViewDetails() {
-    router.push(`/session/${session.id}`);
-  }
-
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [eventsLoaded, setEventsLoaded] = useState(false);
 
@@ -208,6 +204,10 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
         });
     }
   }, [expanded, eventsLoaded, session.id]);
+
+  function handleViewDetails() {
+    router.push(`/session/${session.id}`);
+  }
 
   return (
     <Pressable
