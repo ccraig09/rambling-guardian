@@ -41,11 +41,13 @@ export class GoogleAuthService {
       body: body.toString(),
     });
 
-    const data = await res.json();
     if (!res.ok) {
-      throw new Error(`[GoogleAuth] Token exchange failed: ${data.error ?? res.status}`);
+      let errorCode: string = String(res.status);
+      try { errorCode = (await res.json()).error ?? errorCode; } catch {}
+      throw new Error(`[GoogleAuth] Token exchange failed: ${errorCode}`);
     }
 
+    const data = await res.json();
     await this._storeTokens(data.access_token, data.refresh_token, data.expires_in);
   }
 

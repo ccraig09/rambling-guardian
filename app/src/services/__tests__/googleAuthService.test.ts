@@ -105,6 +105,21 @@ describe('GoogleAuthService', () => {
       expect(token).toBe('NEW_ACCESS');
       expect(secureStoreData['google_access_token']).toBe('NEW_ACCESS');
     });
+
+    it('returns null and disconnects when refresh token is revoked', async () => {
+      secureStoreData['google_refresh_token'] = 'REVOKED';
+      secureStoreData['google_access_token'] = 'OLD';
+      secureStoreData['google_access_token_expiry'] = String(Date.now() - 1000); // expired
+
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ error: 'invalid_grant' }),
+      } as any);
+
+      const token = await service.getValidAccessToken();
+      expect(token).toBeNull();
+      expect(await service.isConnected()).toBe(false);
+    });
   });
 
   describe('disconnect', () => {
