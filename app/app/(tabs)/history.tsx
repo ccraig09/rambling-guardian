@@ -263,53 +263,66 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
           )}
 
           {/* ── Expanded: AI Summary ── */}
-          {ANTHROPIC_API_KEY && summaryEligibilityReason({
-            durationMs: session.durationMs,
-            transcript: session.transcript ?? null,
-            summary: localSummary,
-            summaryStatus: localStatus,
-          }) === null && (
-            <View style={{ marginTop: theme.spacing.md }}>
-              <Pressable
-                onPress={handleGenerateSummary}
-                disabled={generating || localStatus === 'generating'}
-                style={[
-                  styles.summaryButton,
-                  {
-                    backgroundColor: theme.primary[500],
-                    borderRadius: theme.radius.full,
-                    opacity: generating || localStatus === 'generating' ? 0.6 : 1,
-                  },
-                ]}
-              >
-                <Text style={[theme.type.small, { color: '#fff', fontFamily: theme.fontFamily.semibold }]}>
-                  {localStatus === 'generating' || generating
-                    ? 'Generating summary…'
-                    : 'Generate Summary'}
-                </Text>
-              </Pressable>
-            </View>
-          )}
+          {ANTHROPIC_API_KEY && (
+            <>
+              {/* Generating — always visible while in-flight, not gated by eligibility */}
+              {(generating || localStatus === 'generating') && (
+                <View style={{ marginTop: theme.spacing.md }}>
+                  <View
+                    style={[
+                      styles.summaryButton,
+                      { backgroundColor: theme.colors.elevated, borderRadius: theme.radius.full, opacity: 0.7 },
+                    ]}
+                  >
+                    <Text style={[theme.type.small, { color: theme.text.secondary, fontFamily: theme.fontFamily.semibold }]}>
+                      Generating summary…
+                    </Text>
+                  </View>
+                </View>
+              )}
 
-          {localStatus === 'complete' && localSummary && (
-            <View style={{ marginTop: theme.spacing.md }}>
-              <Text style={[theme.type.small, { color: theme.text.tertiary, marginBottom: theme.spacing.xs, fontFamily: theme.fontFamily.semibold }]}>
-                AI Summary
-              </Text>
-              <Text style={[theme.type.small, { color: theme.text.secondary, lineHeight: 20 }]}>
-                {localSummary}
-              </Text>
-            </View>
-          )}
+              {/* Button — show only when eligible and idle */}
+              {!generating && localStatus !== 'generating' && summaryEligibilityReason({
+                durationMs: session.durationMs,
+                transcript: session.transcript ?? null,
+                summary: localSummary,
+                summaryStatus: localStatus,
+              }) === null && (
+                <View style={{ marginTop: theme.spacing.md }}>
+                  <Pressable
+                    onPress={handleGenerateSummary}
+                    style={[styles.summaryButton, { backgroundColor: theme.primary[500], borderRadius: theme.radius.full }]}
+                  >
+                    <Text style={[theme.type.small, { color: '#fff', fontFamily: theme.fontFamily.semibold }]}>
+                      Generate Summary
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
 
-          {localStatus === 'failed' && (
-            <View style={{ marginTop: theme.spacing.md }}>
-              <Pressable onPress={handleGenerateSummary} disabled={generating}>
-                <Text style={[theme.type.small, { color: theme.alert.urgent }]}>
-                  Summary failed. Tap to retry.
-                </Text>
-              </Pressable>
-            </View>
+              {/* Complete */}
+              {localStatus === 'complete' && localSummary && (
+                <View style={{ marginTop: theme.spacing.md }}>
+                  <Text style={[theme.type.small, { color: theme.text.tertiary, marginBottom: theme.spacing.xs, fontFamily: theme.fontFamily.semibold }]}>
+                    AI Summary
+                  </Text>
+                  <Text style={[theme.type.small, { color: theme.text.secondary, lineHeight: 20 }]}>
+                    {localSummary}
+                  </Text>
+                </View>
+              )}
+
+              {/* Failed */}
+              {localStatus === 'failed' && !generating && (
+                <View style={{ marginTop: theme.spacing.md }}>
+                  <Pressable onPress={handleGenerateSummary}>
+                    <Text style={[theme.type.small, { color: theme.alert.urgent }]}>
+                      Summary failed. Tap to retry.
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            </>
           )}
         </View>
       )}

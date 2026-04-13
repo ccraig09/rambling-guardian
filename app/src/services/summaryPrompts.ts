@@ -16,19 +16,19 @@ The user was speaking alone (rehearsing, journaling, or self-coaching).
 Give a 3-5 sentences recap focused on their pacing, rambling patterns, and what to work on.
 Reference specific moments from the transcript when relevant.
 If no alerts fired, acknowledge it as a clean session.
-Output plain text. No markdown formatting. No bullet lists.`;
+Output plain text. No markdown, no bullet lists, no em dashes, no colons used as connectors. Write in natural flowing sentences.`;
 
 const WITH_OTHERS_PROMPT = `You are a meeting debrief coach reviewing a multi-speaker conversation.
 The user was in a conversation with other speakers.
 Give a 3-5 sentences recap focused on the user's talk-time share, conversational balance, and key topics.
 Note whether the user dominated or balanced well, and reference specific moments when relevant.
-Output plain text. No markdown formatting. No bullet lists.`;
+Output plain text. No markdown, no bullet lists, no em dashes, no colons used as connectors. Write in natural flowing sentences.`;
 
 const PRESENTATION_PROMPT = `You are a presentation coach reviewing a talk.
 The user was presenting to an audience (one dominant speaker with listeners).
 Give a 3-5 sentences recap focused on the user's pacing, whether alerts suggest they needed to pause more,
 and any audience engagement signals (questions from others).
-Output plain text. No markdown formatting. No bullet lists.`;
+Output plain text. No markdown, no bullet lists, no em dashes, no colons used as connectors. Write in natural flowing sentences.`;
 
 /**
  * Return the system prompt for a given session context.
