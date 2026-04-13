@@ -22,6 +22,7 @@ import {
   updateSummaryStatus,
 } from '../../src/db/sessions';
 import type { Session, AlertEvent, TranscriptSegment, SpeakerMapping } from '../../src/types';
+import { AlertLevel } from '../../src/types';
 import {
   formatSessionDate,
   formatDuration,
@@ -77,6 +78,22 @@ function buildTurns(segments: TranscriptSegment[], mappings: SpeakerMapping[]): 
 }
 
 // ---------------------------------------------------------------------------
+// alertBadgeColor — same logic as history.tsx
+// ---------------------------------------------------------------------------
+
+type Theme = ReturnType<typeof useTheme>;
+
+function alertBadgeColor(level: AlertLevel, theme: Theme): string {
+  switch (level) {
+    case AlertLevel.GENTLE:   return theme.alert.gentle;
+    case AlertLevel.MODERATE: return theme.alert.moderate;
+    case AlertLevel.URGENT:   return theme.alert.urgent;
+    case AlertLevel.CRITICAL: return theme.alert.urgent;
+    default:                  return theme.alert.safe;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 
@@ -93,6 +110,9 @@ export default function SessionDetailScreen() {
   const [localSummary, setLocalSummary] = useState<string | null>(null);
   const [localStatus, setLocalStatus] = useState<Session['summaryStatus']>(null);
   const [generating, setGenerating] = useState(false);
+
+  // Alert timeline accordion
+  const [timelineOpen, setTimelineOpen] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -369,6 +389,46 @@ export default function SessionDetailScreen() {
           </View>
         ) : null}
 
+        {/* ── Alert Timeline Accordion ── */}
+        {events.length > 0 && (
+          <View style={[styles.section, styles.sectionBorder, { borderTopColor: theme.colors.elevated }]}>
+            {/* Accordion header */}
+            <Pressable
+              onPress={() => setTimelineOpen((prev) => !prev)}
+              style={styles.accordionHeader}
+            >
+              <Text style={[styles.sectionLabel, { color: theme.text.tertiary, marginBottom: 0 }]}>
+                ALERT TIMELINE
+              </Text>
+              <Text style={[theme.type.caption, { color: theme.text.muted }]}>
+                {events.length} {events.length === 1 ? 'alert' : 'alerts'} {timelineOpen ? '▲' : '▶'}
+              </Text>
+            </Pressable>
+
+            {/* Expanded rows */}
+            {timelineOpen && (
+              <View style={{ marginTop: 12 }}>
+                {events.map((event) => (
+                  <View key={event.id} style={styles.timelineRow}>
+                    <Text style={[theme.type.caption, { color: theme.text.muted, width: 44 }]}>
+                      {formatOffset(event.timestamp)}
+                    </Text>
+                    <View
+                      style={[
+                        styles.timelineDot,
+                        { backgroundColor: alertBadgeColor(event.alertLevel, theme) },
+                      ]}
+                    />
+                    <Text style={[theme.type.small, { color: theme.text.secondary, flex: 1 }]}>
+                      {formatDuration(event.durationAtAlert)} of continuous speech
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Bottom padding */}
         <View style={{ height: 48 }} />
       </ScrollView>
@@ -435,6 +495,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 5,
+  },
+  timelineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   errorContainer: {
     flex: 1,
