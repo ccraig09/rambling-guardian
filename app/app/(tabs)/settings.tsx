@@ -190,6 +190,7 @@ export default function SettingsScreen() {
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: '618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com',
     scopes: ['https://www.googleapis.com/auth/drive.file'],
+    shouldAutoExchangeCode: false,
   });
 
   // Check connection status on mount
