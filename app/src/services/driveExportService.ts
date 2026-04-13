@@ -124,7 +124,7 @@ class DriveExportService {
   }
 
   async exportAllSessions(): Promise<{ succeeded: number; failed: number }> {
-    const sessions = await getSessions(200);
+    const sessions = await getSessions(200); // 200-session cap for v1; revisit if bulk-export is added
     const pending = sessions.filter((s) => s.backupStatus !== 'complete');
 
     let succeeded = 0;
