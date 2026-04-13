@@ -8,7 +8,7 @@
  *
  * Offline-safe: all writes go to Zustand first; BLE writes only when connected.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -188,9 +188,10 @@ export default function SettingsScreen() {
   const [driveBackupMessage, setDriveBackupMessage] = useState<string | null>(null);
   const [driveLoading, setDriveLoading] = useState(false);
 
-  const redirectUri = makeRedirectUri({
-    scheme: 'com.googleusercontent.apps.618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99',
-  });
+  const redirectUri = useMemo(
+    () => makeRedirectUri({ scheme: 'com.googleusercontent.apps.618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99' }),
+    [],
+  );
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: '618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com',
@@ -221,7 +222,7 @@ export default function SettingsScreen() {
         })
         .finally(() => setDriveLoading(false));
     }
-  }, [response]);
+  }, [response, request]);
 
   // Check OS notification permission on mount and when app returns to foreground
   useEffect(() => {
@@ -276,9 +277,14 @@ export default function SettingsScreen() {
   }
 
   async function handleDriveDisconnect() {
-    await googleAuthService.disconnect();
-    setDriveConnected(false);
-    setDriveBackupMessage(null);
+    try {
+      await googleAuthService.disconnect();
+      setDriveConnected(false);
+      setDriveBackupMessage(null);
+    } catch (e) {
+      console.warn('[Settings] Drive disconnect failed:', e);
+      setDriveBackupMessage('Disconnect failed. Please try again.');
+    }
   }
 
   async function handleBackupAll() {

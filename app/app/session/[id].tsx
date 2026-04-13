@@ -163,8 +163,6 @@ export default function SessionDetailScreen() {
             );
           }
         }
-        // Check Drive connection
-        googleAuthService.isConnected().then(setDriveConnected).catch(() => {});
       })
       .catch((e) => {
         console.warn('[SessionDetail] Failed to load session:', e);
@@ -172,6 +170,11 @@ export default function SessionDetailScreen() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Check Drive connection independently of session data load
+  useEffect(() => {
+    googleAuthService.isConnected().then(setDriveConnected).catch(() => {});
+  }, []);
 
   async function handleGenerateSummary() {
     if (generating || !session) return;
@@ -478,14 +481,14 @@ export default function SessionDetailScreen() {
               { borderTopColor: theme.colors.elevated, paddingTop: 20, marginBottom: 8 },
             ]}
           >
-            {driveExporting ? (
+            {(driveExporting || session.backupStatus === 'uploading') ? (
               <Text style={[theme.type.small, { color: theme.text.secondary }]}>
                 Exporting to Drive…
               </Text>
             ) : (
               <Pressable onPress={handleExportToDrive}>
                 <Text style={[theme.type.small, { color: theme.primary[400] }]}>
-                  ↑ Export to Drive
+                  {session.backupStatus === 'failed' ? '↑ Retry Export to Drive' : '↑ Export to Drive'}
                 </Text>
               </Pressable>
             )}
