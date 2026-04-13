@@ -124,6 +124,16 @@ Screen sections: compact header (date/duration/context/alerts) → Transcript (d
 Transcript rendering: parse `transcriptTimestamps` → `TranscriptSegment[]`, parse `speakerMap` → `SpeakerMapping[]`, group consecutive same-speaker `isFinal` segments into named turns. Fallback chain: speaker turns → flat text → "No transcript" empty state.
 No new services, no new DB functions, no new types. Pure UI ticket.
 
+### Google Drive Backup (Phase D.8 v1)
+App-mediated Google Drive OAuth 2.0 (PKCE code flow, no client_secret). Per-session Markdown export, refresh token persistence in `expo-secure-store`.
+**Services:** `googleAuthService.ts` (token lifecycle: connect, refresh, disconnect, isConnected). `driveExportService.ts` (folder tree ops + multipart upload + batch export). `sessionMarkdown.ts` (pure formatter — no DB/side effects).
+**GCP:** project `rambling-guardian`, Google Drive API enabled, iOS OAuth Client ID `618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com`, bundle ID `com.ccraig09.ramblingguardian`, reverse scheme `com.googleusercontent.apps.618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99`.
+**Drive folder tree:** `My Drive / Rambling Guardian / Transcripts / YYYY / MM /`. Scope: `drive.file` only (app sees only files it creates).
+**`migrateToV8`** adds `drive_file_id TEXT` and `backup_status TEXT` columns. `BackupStatus = 'uploading' | 'complete' | 'failed' | null`.
+**UI:** Settings → Cloud Backup section (connect/disconnect/batch-export). Session Detail → per-session "Export to Drive" button (shows retry on `failed`, progress on `uploading`).
+**Non-negotiables:** `Google.useAuthRequest` hook MUST live in React components, NOT in service classes (expo-auth-session React constraint). `drive.file` scope only — never request broader Drive access. Token refresh silently disconnects on `invalid_grant` (password change, revocation).
+**Build required:** `expo-auth-session`, `expo-web-browser`, `expo-secure-store` are all native — EAS build required (not Expo Go). OAuth consent screen is in "Testing" mode — only `carlos.craig09@gmail.com` can authorize until published.
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 
@@ -203,6 +213,8 @@ npx expo install @expo/vector-icons               # add icons (not auto-included
 - **Deepgram API key**: `EXPO_PUBLIC_DEEPGRAM_API_KEY` env var. Client-side prototyping only — do not ship to TestFlight without reviewing security model.
 - **react-native-live-audio-stream**: requires EAS build (not Expo Go). 16kHz/mono/16-bit PCM. `wavFile: ''` required in init options (unused — streaming to Deepgram).
 - **Deepgram WebSocket auth**: must use `Authorization: Token KEY` header. Token query param does NOT work on iOS RN 0.81.
+- **Google OAuth**: `Google.useAuthRequest` hook MUST stay in React components (not service classes). `expo-auth-session`, `expo-web-browser`, `expo-secure-store` require EAS build.
+- **Google Drive scope**: `drive.file` only — app can only see files it creates. Never request broader scopes.
 
 ## IDE / Tooling Notes
 - **LSP diagnostics are always false positives** — clang has no Arduino headers; `Serial`, `millis()`, `I2SClass` etc. always show as errors in the IDE. Ignore them. `arduino-cli compile` is the only truth.
