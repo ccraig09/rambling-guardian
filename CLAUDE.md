@@ -118,6 +118,12 @@ Truncation strategy: if transcript exceeds ~32K chars (~8K tokens), keep only th
 `session_context_source` is preserved from D.4; summary prompts are selected by `session_context`.
 `migrateToV7` adds `summary`, `summary_status`, `summary_generated_at` columns. Summary displays in the expanded session card in history with four states: button / generating / complete / failed (tap to retry).
 
+### Session Detail & Transcript Review (Phase D.7 v1)
+`app/app/session/[id].tsx` is a modal route (registered in `_layout.tsx`) presenting the full session review surface. Navigated via "View Details →" text link at the bottom of every expanded history card.
+Screen sections: compact header (date/duration/context/alerts) → Transcript (dominant) → AI Summary (reuses D.6 logic) → Alert Timeline accordion (collapsed by default).
+Transcript rendering: parse `transcriptTimestamps` → `TranscriptSegment[]`, parse `speakerMap` → `SpeakerMapping[]`, group consecutive same-speaker `isFinal` segments into named turns. Fallback chain: speaker turns → flat text → "No transcript" empty state.
+No new services, no new DB functions, no new types. Pure UI ticket.
+
 ### Battery Safe-Stop Sequence
 When battery hits BATTERY_SHUTDOWN_PERCENT, battery_monitor publishes EVENT_BATTERY_CRITICAL. The event bus is synchronous, so all subscribers run before battery_monitor continues. capture_mode subscribes to this event and calls stopRecording() (which flushes WAV data via wavWriterClose() and session stats via sessionLoggerFlush()) before the event handler returns. A 2s delay before esp_deep_sleep_start() provides a provisional safety margin. **The event-bus subscription is the real safe-stop mechanism — the delay is a stopgap.** Future improvement: replace the fixed delay with a completion handshake where capture_mode sets a "flush complete" flag that battery_monitor checks before sleeping.
 
