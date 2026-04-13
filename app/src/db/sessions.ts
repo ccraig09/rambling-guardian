@@ -358,10 +358,10 @@ export async function updateSummary(
   );
 }
 
-/** Update summary status without touching the summary text. */
+/** Update summary status without touching the summary text. Pass null to clear a stale status. */
 export async function updateSummaryStatus(
   sessionId: string,
-  status: 'generating' | 'failed',
+  status: 'generating' | 'failed' | null,
 ): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(

@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/theme/theme';
-import { getSessions, getAlertEvents, getLifetimeStats, getSessionById } from '../../src/db/sessions';
+import { getSessions, getAlertEvents, getLifetimeStats, getSessionById, updateSummaryStatus } from '../../src/db/sessions';
 import type { Session, AlertEvent } from '../../src/types';
 import { AlertLevel } from '../../src/types';
 import { formatSessionDate, formatDuration, formatTotalTime, formatOffset } from '../../src/utils/timeFormat';
@@ -176,6 +176,18 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
       setGenerating(false);
     }
   }
+
+  // On mount: if persisted status is 'generating', no real request is in flight — it's stale.
+  // Reset to null so the user gets the retry button instead of a permanent hung state.
+  useEffect(() => {
+    if (session.summaryStatus === 'generating') {
+      setLocalStatus(null);
+      updateSummaryStatus(session.id, null).catch((e) => {
+        console.warn('[History] Failed to clear stale generating status:', e);
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — run once on mount only
 
   useEffect(() => {
     if (expanded && !eventsLoaded) {
