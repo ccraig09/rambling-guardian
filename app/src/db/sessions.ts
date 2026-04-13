@@ -377,7 +377,7 @@ export async function updateBackupStatus(
   driveFileId?: string,
 ): Promise<void> {
   const db = await getDatabase();
-  if (driveFileId) {
+  if (driveFileId !== undefined) {
     await db.runAsync(
       'UPDATE sessions SET backup_status = ?, drive_file_id = ? WHERE id = ?',
       [status, driveFileId, id],
