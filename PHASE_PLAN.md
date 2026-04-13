@@ -165,6 +165,9 @@ Living ticket tracker. Check off as completed.
 - [x] RG-D.7 v1: Session detail screen + transcript review — modal route, speaker-attributed transcript, AI summary reuse, alert timeline accordion
 - [ ] RG-D.7+: Exercise recommendation engine — suggest exercises based on detected patterns (filler words → articulation drills, pacing → rhythm exercises), integrate with existing exercise library
 - [ ] RG-D.8: Backup/export flow — Google Drive sync (app-mediated OAuth), folder structure (year/month/auto-title), separate Audio/ and Transcripts/ folders, background queue
+  - Spec: `docs/specs/2026-04-13-d8-google-drive-backup-design.md`
+  - Plan: `docs/plans/2026-04-13-d8-google-drive-backup.md`
+  - GCP: project `rambling-guardian`, iOS client ID `618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com`
 - [ ] Run revise-claude-md and commit
 
 ---
