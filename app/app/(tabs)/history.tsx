@@ -14,7 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTheme } from '../../src/theme/theme';
 import { getSessions, getAlertEvents, getLifetimeStats, getSessionById, updateSummaryStatus } from '../../src/db/sessions';
 import type { Session, AlertEvent } from '../../src/types';
@@ -149,6 +149,12 @@ interface SessionCardProps {
 }
 
 function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
+  const router = useRouter();
+
+  function handleViewDetails() {
+    router.push(`/session/${session.id}`);
+  }
+
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [eventsLoaded, setEventsLoaded] = useState(false);
 
@@ -336,6 +342,12 @@ function SessionCard({ session, expanded, onToggle, theme }: SessionCardProps) {
               )}
             </>
           )}
+
+          <Pressable onPress={handleViewDetails} style={{ marginTop: theme.spacing.md, alignSelf: 'flex-end' }}>
+            <Text style={[theme.type.small, { color: theme.primary[400], fontFamily: theme.fontFamily.semibold }]}>
+              View Details →
+            </Text>
+          </Pressable>
         </View>
       )}
     </Pressable>
