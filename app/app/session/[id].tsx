@@ -203,7 +203,7 @@ export default function SessionDetailScreen() {
   const turns = segments ? buildTurns(segments, speakerMappings) : null;
 
   const contextLabel = session.sessionContext
-    ? session.sessionContext.replace('_', ' ')
+    ? session.sessionContext.replaceAll('_', ' ')
     : null;
 
   // ---------------------------------------------------------------------------
@@ -249,21 +249,23 @@ export default function SessionDetailScreen() {
             </View>
           )}
 
-          <View
-            style={[
-              styles.badge,
-              { backgroundColor: theme.colors.elevated, borderRadius: theme.radius.full },
-            ]}
-          >
-            <Text
+          {session.alertCount > 0 && (
+            <View
               style={[
-                theme.type.caption,
-                { color: theme.text.secondary, fontFamily: theme.fontFamily.semibold },
+                styles.badge,
+                { backgroundColor: theme.colors.elevated, borderRadius: theme.radius.full },
               ]}
             >
-              {session.alertCount} {session.alertCount === 1 ? 'alert' : 'alerts'}
-            </Text>
-          </View>
+              <Text
+                style={[
+                  theme.type.caption,
+                  { color: theme.text.secondary, fontFamily: theme.fontFamily.semibold },
+                ]}
+              >
+                {session.alertCount} {session.alertCount === 1 ? 'alert' : 'alerts'}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
