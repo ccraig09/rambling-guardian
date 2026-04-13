@@ -26,9 +26,11 @@ async function driveGet(path: string, token: string): Promise<any> {
 }
 
 async function findFolder(name: string, parentId: string | null, token: string): Promise<string | null> {
-  const parentClause = parentId ? ` and '${parentId}' in parents` : '';
+  // When no explicit parent, restrict to Drive root to avoid matching same-named
+  // folders that live elsewhere (e.g. project docs folders).
+  const parent = parentId ?? 'root';
   const q = encodeURIComponent(
-    `name='${name}' and mimeType='${FOLDER_MIME}'${parentClause} and trashed=false`,
+    `name='${name}' and mimeType='${FOLDER_MIME}' and '${parent}' in parents and trashed=false`,
   );
   const data = await driveGet(`?q=${q}&fields=files(id,name)`, token);
   return data.files?.[0]?.id ?? null;
@@ -92,6 +94,63 @@ async function uploadMarkdownFile(
   return data.id;
 }
 
+// Update the content of an existing Drive file. Does NOT rename or move it.
+async function patchMarkdownFile(fileId: string, content: string, token: string): Promise<string> {
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'text/markdown; charset=UTF-8',
+      },
+      body: content,
+    },
+  );
+  if (!res.ok) throw new Error(`[Drive] PATCH failed: ${res.status}`);
+  const data = await res.json();
+  return data.id;
+}
+
+// Search for a file by exact name inside a specific folder.
+async function findFileInFolder(name: string, parentId: string, token: string): Promise<string | null> {
+  const q = encodeURIComponent(
+    `name='${name}' and '${parentId}' in parents and trashed=false`,
+  );
+  const data = await driveGet(`?q=${q}&fields=files(id,name)`, token);
+  return data.files?.[0]?.id ?? null;
+}
+
+// Idempotent write: update existing file if we have its ID or can find it by name;
+// create a new file only if nothing exists.
+async function findOrUpsertMarkdownFile(
+  name: string,
+  content: string,
+  parentId: string,
+  token: string,
+  existingFileId?: string,
+): Promise<string> {
+  // 1. Try patching the stored file ID — cheapest path, handles 99% of re-runs.
+  if (existingFileId) {
+    try {
+      return await patchMarkdownFile(existingFileId, content, token);
+    } catch (e: unknown) {
+      // 404 = file was manually deleted from Drive; fall through and recreate.
+      if (!String((e as Error)?.message).includes('404')) throw e;
+    }
+  }
+
+  // 2. Find by filename in the target folder (handles: DB update failed after
+  //    upload, or first backup left file but driveFileId was never stored).
+  const foundId = await findFileInFolder(name, parentId, token);
+  if (foundId) {
+    return patchMarkdownFile(foundId, content, token);
+  }
+
+  // 3. No existing file — create one.
+  return uploadMarkdownFile(name, content, parentId, token);
+}
+
 class DriveExportService {
   async exportSession(sessionId: string): Promise<void> {
     const token = await googleAuthService.getValidAccessToken();
@@ -115,7 +174,9 @@ class DriveExportService {
       const yearId = await ensureFolder(year, transcriptsId, token);
       const monthId = await ensureFolder(month, yearId, token);
 
-      const fileId = await uploadMarkdownFile(fileName, markdown, monthId, token);
+      const fileId = await findOrUpsertMarkdownFile(
+        fileName, markdown, monthId, token, session.driveFileId ?? undefined,
+      );
       await updateBackupStatus(sessionId, 'complete', fileId);
     } catch (e) {
       await updateBackupStatus(sessionId, 'failed');
@@ -126,15 +187,16 @@ class DriveExportService {
   async exportAllSessions(
     onProgress?: (done: number, total: number) => void,
   ): Promise<{ succeeded: number; failed: number }> {
-    const sessions = await getSessions(200); // 200-session cap for v1; revisit if bulk-export is added
-    const pending = sessions.filter((s) => s.backupStatus !== 'complete');
-    const total = pending.length;
+    const sessions = await getSessions(200); // 200-session cap for v1
+    // No 'complete' filter — every run is idempotent: existing Drive files are
+    // PATCHed (content updated), not duplicated. New sessions get new files.
+    const total = sessions.length;
 
     let succeeded = 0;
     let failed = 0;
     let done = 0;
 
-    for (const session of pending) {
+    for (const session of sessions) {
       try {
         await this.exportSession(session.id);
         succeeded++;

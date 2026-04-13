@@ -27,7 +27,10 @@ export function buildDriveFileName(session: Session): string {
   const hh = String(d.getHours()).padStart(2, '0');
   const min = String(d.getMinutes()).padStart(2, '0');
   const ctx = session.sessionContext ? (CONTEXT_SLUG[session.sessionContext] ?? 'session') : 'session';
-  return `${yyyy}-${mm}-${dd}_${hh}-${min}_${ctx}.md`;
+  // Last 8 chars of the session UUID make filenames unique even when two sessions
+  // start at the same minute with the same context.
+  const suffix = session.id.slice(-8);
+  return `${yyyy}-${mm}-${dd}_${hh}-${min}_${ctx}_${suffix}.md`;
 }
 
 export function buildDriveFolderPath(session: Session): { year: string; month: string } {
