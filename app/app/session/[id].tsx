@@ -20,11 +20,58 @@ import {
   getSessionById,
   getAlertEvents,
 } from '../../src/db/sessions';
-import type { Session, AlertEvent } from '../../src/types';
+import type { Session, AlertEvent, TranscriptSegment, SpeakerMapping } from '../../src/types';
 import {
   formatSessionDate,
   formatDuration,
+  formatOffset,
 } from '../../src/utils/timeFormat';
+
+// ---------------------------------------------------------------------------
+// Pure helpers — transcript parsing
+// ---------------------------------------------------------------------------
+
+function parseSegments(raw: string | null): TranscriptSegment[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch { return null; }
+}
+
+function parseSpeakerMap(raw: string | null): SpeakerMapping[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function resolveName(label: string | null, mappings: SpeakerMapping[]): string {
+  if (!label) return 'Unknown';
+  return mappings.find((m) => m.diarizedLabel === label)?.displayName ?? label;
+}
+
+interface Turn {
+  displayName: string;
+  startMs: number;
+  text: string;
+}
+
+function buildTurns(segments: TranscriptSegment[], mappings: SpeakerMapping[]): Turn[] {
+  const turns: Turn[] = [];
+  for (const seg of segments) {
+    if (!seg.isFinal) continue;
+    const name = resolveName(seg.speaker, mappings);
+    const last = turns[turns.length - 1];
+    if (last && last.displayName === name) {
+      last.text += ' ' + seg.text;
+    } else {
+      turns.push({ displayName: name, startMs: seg.start, text: seg.text });
+    }
+  }
+  return turns;
+}
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -87,6 +134,14 @@ export default function SessionDetailScreen() {
       </SafeAreaView>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Compute transcript data
+  // ---------------------------------------------------------------------------
+
+  const segments = parseSegments(session.transcriptTimestamps);
+  const speakerMappings = parseSpeakerMap(session.speakerMap);
+  const turns = segments ? buildTurns(segments, speakerMappings) : null;
 
   const contextLabel = session.sessionContext
     ? session.sessionContext.replace('_', ' ')
@@ -158,9 +213,45 @@ export default function SessionDetailScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[theme.type.small, { color: theme.text.muted }]}>
-          Session content loading…
-        </Text>
+        {/* ── Transcript Section ── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.text.tertiary }]}>
+            TRANSCRIPT
+          </Text>
+
+          {turns && turns.length > 0 ? (
+            turns.map((turn, idx) => (
+              <View key={idx} style={[styles.turnRow, { borderLeftColor: theme.colors.elevated }]}>
+                <View style={styles.turnHeader}>
+                  <Text
+                    style={[
+                      theme.type.caption,
+                      { color: theme.primary[400], fontFamily: theme.fontFamily.semibold },
+                    ]}
+                  >
+                    {turn.displayName}
+                  </Text>
+                  <Text style={[theme.type.caption, { color: theme.text.muted }]}>
+                    {formatOffset(turn.startMs)}
+                  </Text>
+                </View>
+                <Text style={[theme.type.body, { color: theme.text.secondary, lineHeight: 22 }]}>
+                  {turn.text}
+                </Text>
+              </View>
+            ))
+          ) : session.transcript ? (
+            <Text style={[theme.type.body, { color: theme.text.secondary, lineHeight: 22 }]}>
+              {session.transcript}
+            </Text>
+          ) : (
+            <Text
+              style={[theme.type.body, { color: theme.text.tertiary, fontStyle: 'italic' }]}
+            >
+              No transcript was recorded for this session.
+            </Text>
+          )}
+        </View>
 
         {/* Bottom padding */}
         <View style={{ height: 48 }} />
@@ -199,6 +290,26 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 12,
+  },
+  turnRow: {
+    borderLeftWidth: 2,
+    paddingLeft: 12,
+    marginBottom: 14,
+  },
+  turnHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   errorContainer: {
     flex: 1,
