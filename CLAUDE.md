@@ -126,12 +126,15 @@ No new services, no new DB functions, no new types. Pure UI ticket.
 
 ### Google Drive Backup (Phase D.8 v1)
 App-mediated Google Drive OAuth 2.0 (PKCE code flow, no client_secret). Per-session Markdown export, refresh token persistence in `expo-secure-store`.
-**Services:** `googleAuthService.ts` (token lifecycle: connect, refresh, disconnect, isConnected). `driveExportService.ts` (folder tree ops + multipart upload + batch export). `sessionMarkdown.ts` (pure formatter — no DB/side effects).
+**Services:** `googleAuthService.ts` (token lifecycle: connect, refresh, disconnect, isConnected). `driveExportService.ts` (folder tree ops + idempotent upload + batch export). `sessionMarkdown.ts` (pure formatter — no DB/side effects).
 **GCP:** project `rambling-guardian`, Google Drive API enabled, iOS OAuth Client ID `618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com`, bundle ID `com.ccraig09.ramblingguardian`, reverse scheme `com.googleusercontent.apps.618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99`.
-**Drive folder tree:** `My Drive / Rambling Guardian / Transcripts / YYYY / MM /`. Scope: `drive.file` only (app sees only files it creates).
+**Drive folder tree:** `My Drive / Rambling Guardian Backups / Transcripts / YYYY / MM /`. "Backups" suffix avoids collision with user's other same-named project folders. `findFolder` scopes to `'root' in parents` when no explicit parent to prevent matching folders elsewhere in Drive. Scope: `drive.file` only (app sees only files it creates).
+**Filename:** `YYYY-MM-DD_HH-MM_ctx_XXXXXXXX.md` where `XXXXXXXX` is the last 8 chars of session UUID — prevents filename collisions between same-minute same-context sessions.
+**Idempotency:** Drive is source of truth, NOT the stored `drive_file_id`. `findOrUpsertMarkdownFile` always searches by filename with `trashed=false`; if found, PATCH content, else POST new. This sidesteps a silent-failure mode where Drive accepts PATCH on trashed files (returns 200, updates content, file stays in trash — invisible to user). `drive_file_id` is still written on upload for future optimization but never read for dedup decisions.
 **`migrateToV8`** adds `drive_file_id TEXT` and `backup_status TEXT` columns. `BackupStatus = 'uploading' | 'complete' | 'failed' | null`.
-**UI:** Settings → Cloud Backup section (connect/disconnect/batch-export). Session Detail → per-session "Export to Drive" button (shows retry on `failed`, progress on `uploading`).
-**Non-negotiables:** `Google.useAuthRequest` hook MUST live in React components, NOT in service classes (expo-auth-session React constraint). `drive.file` scope only — never request broader Drive access. Token refresh silently disconnects on `invalid_grant` (password change, revocation).
+**Filter behavior:** `exportAllSessions(onProgress, force)`. Default `force=false` filters out sessions with `backup_status='complete'` — fast repeat runs only process new/failed sessions. `force=true` re-uploads all sessions (recovery path for DB/Drive divergence). Per-session `exportSession(id)` always exports, bypassing filter.
+**UI:** Settings → Cloud Backup has (1) primary "Back Up All Sessions" with live progress `N of M backed up…`, `Retry Failed Sessions` in alert red on partial/full failure; (2) secondary muted link "Re-upload all sessions (even ones already backed up)" — escape hatch; (3) Disconnect Google Drive. Session Detail → per-session "Export to Drive" button with `uploading`/`failed`/`complete` states.
+**OAuth non-negotiables:** `Google.useAuthRequest` hook MUST live in React components (not service classes) — expo-auth-session React constraint. `shouldAutoExchangeCode: false` REQUIRED or the hook consumes the auth code internally before our service can exchange it (causing `invalid_grant`). Pass `request?.redirectUri` (not `makeRedirectUri(...)`) into the token exchange — the hook's redirectUri is authoritative. Token refresh silently disconnects on `invalid_grant` (password change, revocation).
 **Build required:** `expo-auth-session`, `expo-web-browser`, `expo-secure-store` are all native — EAS build required (not Expo Go). OAuth consent screen is in "Testing" mode — only `carlos.craig09@gmail.com` can authorize until published.
 
 ### Battery Safe-Stop Sequence
@@ -213,8 +216,9 @@ npx expo install @expo/vector-icons               # add icons (not auto-included
 - **Deepgram API key**: `EXPO_PUBLIC_DEEPGRAM_API_KEY` env var. Client-side prototyping only — do not ship to TestFlight without reviewing security model.
 - **react-native-live-audio-stream**: requires EAS build (not Expo Go). 16kHz/mono/16-bit PCM. `wavFile: ''` required in init options (unused — streaming to Deepgram).
 - **Deepgram WebSocket auth**: must use `Authorization: Token KEY` header. Token query param does NOT work on iOS RN 0.81.
-- **Google OAuth**: `Google.useAuthRequest` hook MUST stay in React components (not service classes). `expo-auth-session`, `expo-web-browser`, `expo-secure-store` require EAS build.
+- **Google OAuth**: `Google.useAuthRequest` hook MUST stay in React components (not service classes). Set `shouldAutoExchangeCode: false` — hook consumes code internally otherwise, causing `invalid_grant`. Use `request?.redirectUri` from the hook for token exchange, not `makeRedirectUri()`. `expo-auth-session`, `expo-web-browser`, `expo-secure-store` require EAS build.
 - **Google Drive scope**: `drive.file` only — app can only see files it creates. Never request broader scopes.
+- **Drive idempotency**: Always search by filename (`trashed=false`) to find existing files — never trust a stored file ID. Drive accepts PATCH on trashed files (returns 200, content updates, file stays in trash) which causes silent invisible-success failures.
 
 ## IDE / Tooling Notes
 - **LSP diagnostics are always false positives** — clang has no Arduino headers; `Serial`, `millis()`, `I2SClass` etc. always show as errors in the IDE. Ignore them. `arduino-cli compile` is the only truth.
