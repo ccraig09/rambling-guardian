@@ -121,33 +121,21 @@ async function findFileInFolder(name: string, parentId: string, token: string): 
   return data.files?.[0]?.id ?? null;
 }
 
-// Idempotent write: update existing file if we have its ID or can find it by name;
-// create a new file only if nothing exists.
+// Idempotent write. The Drive folder is the source of truth, not our stored
+// driveFileId — a stored ID may point to a trashed file, and Drive silently
+// accepts PATCH on trashed files (updates content but file stays in trash),
+// which makes the upload invisible to the user. Searching by filename with
+// trashed=false bypasses that failure mode entirely.
 async function findOrUpsertMarkdownFile(
   name: string,
   content: string,
   parentId: string,
   token: string,
-  existingFileId?: string,
 ): Promise<string> {
-  // 1. Try patching the stored file ID — cheapest path, handles 99% of re-runs.
-  if (existingFileId) {
-    try {
-      return await patchMarkdownFile(existingFileId, content, token);
-    } catch (e: unknown) {
-      // 404 = file was manually deleted from Drive; fall through and recreate.
-      if (!String((e as Error)?.message).includes('404')) throw e;
-    }
-  }
-
-  // 2. Find by filename in the target folder (handles: DB update failed after
-  //    upload, or first backup left file but driveFileId was never stored).
   const foundId = await findFileInFolder(name, parentId, token);
   if (foundId) {
     return patchMarkdownFile(foundId, content, token);
   }
-
-  // 3. No existing file — create one.
   return uploadMarkdownFile(name, content, parentId, token);
 }
 
@@ -168,15 +156,15 @@ class DriveExportService {
       const fileName = buildDriveFileName(session);
       const { year, month } = buildDriveFolderPath(session);
 
-      // Ensure folder tree: Rambling Guardian → Transcripts → YYYY → MM
-      const rootId = await ensureFolder('Rambling Guardian', null, token);
+      // Ensure folder tree: Rambling Guardian Backups → Transcripts → YYYY → MM
+      // ("Backups" suffix avoids collision with user's other "Rambling Guardian"
+      // project folders in Drive.)
+      const rootId = await ensureFolder('Rambling Guardian Backups', null, token);
       const transcriptsId = await ensureFolder('Transcripts', rootId, token);
       const yearId = await ensureFolder(year, transcriptsId, token);
       const monthId = await ensureFolder(month, yearId, token);
 
-      const fileId = await findOrUpsertMarkdownFile(
-        fileName, markdown, monthId, token, session.driveFileId ?? undefined,
-      );
+      const fileId = await findOrUpsertMarkdownFile(fileName, markdown, monthId, token);
       await updateBackupStatus(sessionId, 'complete', fileId);
     } catch (e) {
       await updateBackupStatus(sessionId, 'failed');
