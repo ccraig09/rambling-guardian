@@ -17,7 +17,14 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.ccraig09.ramblingguardian",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Rambling Guardian uses the microphone for voice training enrollment and live session transcription."
+        "NSMicrophoneUsageDescription": "Rambling Guardian uses the microphone for voice training enrollment and live session transcription.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99"
+            ]
+          }
+        ]
       },
       "appleTeamId": "DWPND8BT67"
     },
@@ -37,6 +44,7 @@
       ]
     },
     "plugins": [
+      "expo-web-browser",
       "expo-router",
       "expo-sqlite",
       [

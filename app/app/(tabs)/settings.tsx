@@ -22,6 +22,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { useTheme } from '../../src/theme/theme';
 import { useDeviceState } from '../../src/hooks/useDeviceState';
 import { useDeviceStore } from '../../src/stores/deviceStore';
@@ -30,6 +32,10 @@ import { bleService } from '../../src/services/bleManager';
 import { AlertModality } from '../../src/types';
 import type { AlertThresholds } from '../../src/types';
 import { getNotificationPermissionStatus } from '../../src/services/notifications';
+import { googleAuthService } from '../../src/services/googleAuthService';
+import { driveExportService } from '../../src/services/driveExportService';
+
+WebBrowser.maybeCompleteAuthSession();
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -176,6 +182,45 @@ export default function SettingsScreen() {
   const [isApplyingThresholds, setIsApplyingThresholds] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
 
+  // ── Google Drive state ──────────────────────────────────────
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [driveBackupMessage, setDriveBackupMessage] = useState<string | null>(null);
+  const [driveLoading, setDriveLoading] = useState(false); // connect/disconnect only
+  const [backupInProgress, setBackupInProgress] = useState(false);
+  const [backupProgress, setBackupProgress] = useState<{ done: number; total: number } | null>(null);
+  const [backupHasFailed, setBackupHasFailed] = useState(false);
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    iosClientId: '618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com',
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    shouldAutoExchangeCode: false,
+  });
+
+  // Check connection status on mount
+  useEffect(() => {
+    googleAuthService.isConnected().then(setDriveConnected).catch(console.warn);
+  }, []);
+
+  // Handle OAuth response
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { code } = response.params;
+      const codeVerifier = request?.codeVerifier ?? '';
+      setDriveLoading(true);
+      googleAuthService
+        .connect(code, codeVerifier, request?.redirectUri ?? '')
+        .then(() => {
+          setDriveConnected(true);
+          setDriveBackupMessage(null);
+        })
+        .catch((e: unknown) => {
+          console.warn('[Settings] Drive connect failed:', e);
+          setDriveBackupMessage('Connection failed. Please try again.');
+        })
+        .finally(() => setDriveLoading(false));
+    }
+  }, [response, request]);
+
   // Check OS notification permission on mount and when app returns to foreground
   useEffect(() => {
     const checkPermission = () => {
@@ -226,6 +271,54 @@ export default function SettingsScreen() {
     }
     setApplySuccess(true);
     setTimeout(() => setApplySuccess(false), 2500);
+  }
+
+  async function handleDriveDisconnect() {
+    try {
+      await googleAuthService.disconnect();
+      setDriveConnected(false);
+      setDriveBackupMessage(null);
+    } catch (e) {
+      console.warn('[Settings] Drive disconnect failed:', e);
+      setDriveBackupMessage('Disconnect failed. Please try again.');
+    }
+  }
+
+  async function runBackup(force: boolean) {
+    setBackupInProgress(true);
+    setBackupProgress(null);
+    setBackupHasFailed(false);
+    setDriveBackupMessage(null);
+    try {
+      const result = await driveExportService.exportAllSessions(
+        (done, total) => setBackupProgress({ done, total }),
+        force,
+      );
+      if (result.succeeded === 0 && result.failed === 0) {
+        setDriveBackupMessage('All sessions already backed up');
+      } else if (result.failed > 0) {
+        setBackupHasFailed(true);
+        setDriveBackupMessage(`${result.succeeded} backed up · ${result.failed} failed`);
+      } else {
+        setDriveBackupMessage(
+          `${result.succeeded} session${result.succeeded !== 1 ? 's' : ''} backed up`,
+        );
+      }
+    } catch {
+      setBackupHasFailed(true);
+      setDriveBackupMessage('Backup failed. Check your connection and try again.');
+    } finally {
+      setBackupInProgress(false);
+      setBackupProgress(null);
+    }
+  }
+
+  function handleBackupAll() {
+    return runBackup(false);
+  }
+
+  function handleForceResync() {
+    return runBackup(true);
   }
 
   // ------------------------------------------------------------------
@@ -591,6 +684,86 @@ export default function SettingsScreen() {
             </View>
           </View>
         </SettingGroup>
+
+        {/* ================================================================
+         * CLOUD BACKUP section
+         * ================================================================ */}
+        <SectionHeader label="Cloud Backup" theme={theme} />
+
+        <SettingGroup theme={theme}>
+          {!driveConnected ? (
+            <Pressable
+              onPress={() => promptAsync()}
+              disabled={!request || driveLoading}
+              style={[styles.row, { opacity: !request || driveLoading ? 0.5 : 1 }]}
+            >
+              <Text style={[theme.type.body, { color: theme.primary[400] }]}>
+                Connect Google Drive
+              </Text>
+              {driveLoading && <ActivityIndicator size="small" color={theme.primary[400]} />}
+            </Pressable>
+          ) : (
+            <>
+              <View style={styles.row}>
+                <Text style={[theme.type.body, { color: theme.text.primary }]}>
+                  Google Drive
+                </Text>
+                <Text style={[theme.type.small, { color: theme.semantic.success }]}>
+                  Connected ✓
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={handleBackupAll}
+                disabled={backupInProgress}
+                style={[styles.row, { opacity: backupInProgress ? 0.5 : 1 }]}
+              >
+                <Text
+                  style={[
+                    theme.type.body,
+                    { color: backupHasFailed ? theme.alert.urgent : theme.primary[400] },
+                  ]}
+                >
+                  {backupInProgress
+                    ? backupProgress
+                      ? `${backupProgress.done} of ${backupProgress.total} backed up…`
+                      : 'Preparing…'
+                    : backupHasFailed
+                      ? 'Retry Failed Sessions'
+                      : 'Back Up All Sessions'}
+                </Text>
+                {backupInProgress && <ActivityIndicator size="small" color={theme.primary[400]} />}
+              </Pressable>
+
+              <Pressable
+                onPress={handleForceResync}
+                disabled={backupInProgress}
+                style={[styles.row, { opacity: backupInProgress ? 0.5 : 1 }]}
+              >
+                <Text style={[theme.type.small, { color: theme.text.secondary }]}>
+                  Re-upload all sessions (even ones already backed up)
+                </Text>
+              </Pressable>
+
+              <Pressable onPress={handleDriveDisconnect} style={styles.row}>
+                <Text style={[theme.type.body, { color: theme.alert.urgent }]}>
+                  Disconnect Google Drive
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </SettingGroup>
+
+        {driveBackupMessage ? (
+          <Text
+            style={[
+              theme.type.small,
+              { color: theme.text.secondary, marginTop: 4, marginHorizontal: 20 },
+            ]}
+          >
+            {driveBackupMessage}
+          </Text>
+        ) : null}
 
         {/* Bottom padding */}
         <View style={{ height: 40 }} />

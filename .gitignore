@@ -24,3 +24,6 @@ firebase-debug.log
 # Superpowers brainstorm sessions
 .superpowers/
 app/src/spike/
+
+# Git worktrees
+.worktrees/

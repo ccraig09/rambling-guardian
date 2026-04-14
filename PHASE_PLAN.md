@@ -164,7 +164,10 @@ Living ticket tracker. Check off as completed.
 - [x] RG-D.6 v1: Post-session summaries — on-demand AI summary per session, context-aware prompts (solo/with_others/presentation), Claude Haiku via provider adapter, displayed in expanded history card, migrateToV7
 - [x] RG-D.7 v1: Session detail screen + transcript review — modal route, speaker-attributed transcript, AI summary reuse, alert timeline accordion
 - [ ] RG-D.7+: Exercise recommendation engine — suggest exercises based on detected patterns (filler words → articulation drills, pacing → rhythm exercises), integrate with existing exercise library
-- [ ] RG-D.8: Backup/export flow — Google Drive sync (app-mediated OAuth), folder structure (year/month/auto-title), separate Audio/ and Transcripts/ folders, background queue
+- [x] RG-D.8: Backup/export flow — Google Drive PKCE OAuth, per-session Markdown export, folder tree `Rambling Guardian Backups / Transcripts / YYYY / MM`, idempotent (search Drive by name, not stored IDs), skip-complete filter + force re-sync escape hatch
+  - Spec: `docs/specs/2026-04-13-d8-google-drive-backup-design.md`
+  - Plan: `docs/plans/2026-04-13-d8-google-drive-backup.md`
+  - GCP: project `rambling-guardian`, iOS client ID `618204796187-dh47tmhn7p12lup9o7utqpm9l3f4vr99.apps.googleusercontent.com`
 - [ ] Run revise-claude-md and commit
 
 ---

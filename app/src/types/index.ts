@@ -103,6 +103,8 @@ export interface Session {
   summary: string | null;
   summaryStatus: SummaryStatus;
   summaryGeneratedAt: number | null;
+  driveFileId: string | null;
+  backupStatus: BackupStatus;
 }
 
 export interface AlertEvent {
@@ -243,6 +245,9 @@ export type SessionContextSource = 'auto' | 'manual';
 
 /** Summary generation status. Null = never attempted. */
 export type SummaryStatus = 'generating' | 'complete' | 'failed' | null;
+
+/** Google Drive backup status. Null = never attempted. */
+export type BackupStatus = 'uploading' | 'complete' | 'failed' | null;
 
 // ============================================
 // Speaker + Voice Profile Types (D.2)

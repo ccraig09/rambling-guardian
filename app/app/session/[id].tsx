@@ -30,6 +30,8 @@ import {
 } from '../../src/utils/timeFormat';
 import { generateSummary, summaryEligibilityReason } from '../../src/services/summaryService';
 import { ANTHROPIC_API_KEY } from '../../src/config/anthropic';
+import { googleAuthService } from '../../src/services/googleAuthService';
+import { driveExportService } from '../../src/services/driveExportService';
 
 // ---------------------------------------------------------------------------
 // Pure helpers — transcript parsing
@@ -130,6 +132,11 @@ export default function SessionDetailScreen() {
   // Alert timeline accordion
   const [timelineOpen, setTimelineOpen] = useState(false);
 
+  // Drive export state
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [driveExporting, setDriveExporting] = useState(false);
+  const [driveExportError, setDriveExportError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!id) {
       setSession(null);
@@ -164,6 +171,11 @@ export default function SessionDetailScreen() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Check Drive connection independently of session data load
+  useEffect(() => {
+    googleAuthService.isConnected().then(setDriveConnected).catch(() => {});
+  }, []);
+
   async function handleGenerateSummary() {
     if (generating || !session) return;
     setGenerating(true);
@@ -180,6 +192,23 @@ export default function SessionDetailScreen() {
       setLocalStatus('failed');
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleExportToDrive() {
+    if (driveExporting || !session) return;
+    setDriveExporting(true);
+    setDriveExportError(null);
+    try {
+      await driveExportService.exportSession(session.id);
+      // Reload session to pick up updated backup_status
+      const updated = await getSessionById(session.id);
+      if (updated) setSession(updated);
+    } catch (e) {
+      console.warn('[SessionDetail] Drive export failed:', e);
+      setDriveExportError('Export failed. Check your connection.');
+    } finally {
+      setDriveExporting(false);
     }
   }
 
@@ -441,6 +470,46 @@ export default function SessionDetailScreen() {
                 ))}
               </View>
             )}
+          </View>
+        )}
+
+        {/* ── Export to Drive ── */}
+        {driveConnected && session.backupStatus !== 'complete' && (
+          <View
+            style={[
+              styles.sectionBorder,
+              { borderTopColor: theme.colors.elevated, paddingTop: 20, marginBottom: 8 },
+            ]}
+          >
+            {(driveExporting || session.backupStatus === 'uploading') ? (
+              <Text style={[theme.type.small, { color: theme.text.secondary }]}>
+                Exporting to Drive…
+              </Text>
+            ) : (
+              <Pressable onPress={handleExportToDrive}>
+                <Text style={[theme.type.small, { color: theme.primary[400] }]}>
+                  {session.backupStatus === 'failed' ? '↑ Retry Export to Drive' : '↑ Export to Drive'}
+                </Text>
+              </Pressable>
+            )}
+            {driveExportError ? (
+              <Text style={[theme.type.caption, { color: theme.alert.urgent, marginTop: 4 }]}>
+                {driveExportError}
+              </Text>
+            ) : null}
+          </View>
+        )}
+
+        {driveConnected && session.backupStatus === 'complete' && (
+          <View
+            style={[
+              styles.sectionBorder,
+              { borderTopColor: theme.colors.elevated, paddingTop: 20, marginBottom: 8 },
+            ]}
+          >
+            <Text style={[theme.type.small, { color: theme.text.secondary }]}>
+              ✓ Saved to Google Drive
+            </Text>
           </View>
         )}
 
