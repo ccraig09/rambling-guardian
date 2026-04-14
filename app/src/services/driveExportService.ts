@@ -174,17 +174,20 @@ class DriveExportService {
 
   async exportAllSessions(
     onProgress?: (done: number, total: number) => void,
+    force: boolean = false,
   ): Promise<{ succeeded: number; failed: number }> {
     const sessions = await getSessions(200); // 200-session cap for v1
-    // No 'complete' filter — every run is idempotent: existing Drive files are
-    // PATCHed (content updated), not duplicated. New sessions get new files.
-    const total = sessions.length;
+    // Default: skip sessions already marked 'complete' — fast second runs.
+    // force=true re-uploads everything (recovery path when DB status and
+    // Drive state diverge, e.g. user deleted files in Drive).
+    const pending = force ? sessions : sessions.filter((s) => s.backupStatus !== 'complete');
+    const total = pending.length;
 
     let succeeded = 0;
     let failed = 0;
     let done = 0;
 
-    for (const session of sessions) {
+    for (const session of pending) {
       try {
         await this.exportSession(session.id);
         succeeded++;

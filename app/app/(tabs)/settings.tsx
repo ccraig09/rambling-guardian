@@ -284,15 +284,16 @@ export default function SettingsScreen() {
     }
   }
 
-  async function handleBackupAll() {
+  async function runBackup(force: boolean) {
     setBackupInProgress(true);
     setBackupProgress(null);
     setBackupHasFailed(false);
     setDriveBackupMessage(null);
     try {
-      const result = await driveExportService.exportAllSessions((done, total) => {
-        setBackupProgress({ done, total });
-      });
+      const result = await driveExportService.exportAllSessions(
+        (done, total) => setBackupProgress({ done, total }),
+        force,
+      );
       if (result.succeeded === 0 && result.failed === 0) {
         setDriveBackupMessage('All sessions already backed up');
       } else if (result.failed > 0) {
@@ -310,6 +311,14 @@ export default function SettingsScreen() {
       setBackupInProgress(false);
       setBackupProgress(null);
     }
+  }
+
+  function handleBackupAll() {
+    return runBackup(false);
+  }
+
+  function handleForceResync() {
+    return runBackup(true);
   }
 
   // ------------------------------------------------------------------
@@ -724,6 +733,16 @@ export default function SettingsScreen() {
                       : 'Back Up All Sessions'}
                 </Text>
                 {backupInProgress && <ActivityIndicator size="small" color={theme.primary[400]} />}
+              </Pressable>
+
+              <Pressable
+                onPress={handleForceResync}
+                disabled={backupInProgress}
+                style={[styles.row, { opacity: backupInProgress ? 0.5 : 1 }]}
+              >
+                <Text style={[theme.type.small, { color: theme.text.secondary }]}>
+                  Re-upload all sessions (even ones already backed up)
+                </Text>
               </Pressable>
 
               <Pressable onPress={handleDriveDisconnect} style={styles.row}>
